@@ -3,6 +3,7 @@ import ImageCropModal from "../../components/profile/ImageCropModal";
 import { useAuth } from "../../context/AuthContext";
 import "../../styles/pages/profile.css";
 import { Camera } from "lucide-react";
+import DashboardLayout from "../../layouts/DashboardLayout/DashboardLayout";
 import {
   uploadAvatar,
   updateProfile,
@@ -71,11 +72,11 @@ const Profile = () => {
 
       setSelectedImage(null);
 
-      alert("Profile picture updated successfully.");
+      toast.success("Profile picture updated successfully.");
     } catch (error) {
       console.error(error);
 
-      alert(
+      toast.error(
         error.response?.data?.message ||
         "Upload failed."
       );
@@ -104,7 +105,7 @@ const Profile = () => {
     } catch (error) {
       console.error(error);
 
-      alert(
+      toast.error(
         error.response?.data?.message ||
         "Profile update failed."
       );
@@ -112,8 +113,9 @@ const Profile = () => {
   };
 
   return (
-    <div className="profile-page">
-      <div className="profile-card">
+    <DashboardLayout>
+      <div className="profile-page">
+        <div className="profile-card">
 
         <h1 className="profile-title">
           My Profile
@@ -313,7 +315,8 @@ const Profile = () => {
           onSave={handleCropUpload}
         />
       )}
-    </div>
+      </div>
+    </DashboardLayout>
   );
 };
 

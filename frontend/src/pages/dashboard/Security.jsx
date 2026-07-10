@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
+import DashboardLayout from "../../layouts/DashboardLayout/DashboardLayout";
 
 import ChangePasswordForm from "../../components/security/ChangePasswordForm";
 import CreatePasswordWizard from "../../components/security/CreatePasswordWizard";
@@ -17,12 +18,13 @@ const Security = () => {
     !user?.hasPassword;
 
   return (
-  <div
-    style={{
-      maxWidth: "700px",
-      margin: "40px auto",
-    }}
-  >
+    <DashboardLayout>
+      <div
+        style={{
+          maxWidth: "700px",
+          margin: "40px auto",
+        }}
+      >
     <h1>Security</h1>
 
     <hr
@@ -117,8 +119,9 @@ const Security = () => {
         <ActiveSessions />
       </>
     )}
-  </div>
-);
+      </div>
+    </DashboardLayout>
+  );
 };
 const backButton = {
   border: "none",
