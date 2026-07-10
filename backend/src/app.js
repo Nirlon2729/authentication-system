@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const cookieParser = require("cookie-parser");
+const path = require("path");
 
 // Middlewares
 const limiter = require("./middleware/rateLimiter");
@@ -58,6 +59,20 @@ app.get("/", (req, res) => {
 ========================================= */
 
 app.use("/api", routes);
+
+/* =========================================
+   Static Files Serving (Production)
+========================================= */
+
+if (process.env.NODE_ENV === "production") {
+  // Serve static files from the React frontend build directory
+  app.use(express.static(path.join(__dirname, "../../frontend/dist")));
+
+  // Catch-all route to serve the React frontend's index.html
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "../../frontend/dist/index.html"));
+  });
+}
 
 /* =========================================
    Error Handling

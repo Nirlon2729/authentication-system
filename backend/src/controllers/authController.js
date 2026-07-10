@@ -348,7 +348,7 @@ await createSession({
   });
 });
 const googleLogin = asyncHandler(async (req, res) => {
-  const { idToken } = req.body;
+  const { idToken, remember = false } = req.body;
 
   if (!idToken) {
     return res.status(400).json({
