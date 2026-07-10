@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import "../../styles/pages/verifyOTP.css";
+import "../../styles/pages/verifyotp.css";
 import AuthLayout from "../../layouts/AuthLayout";
 import OTPInput from "../../components/ui/OTPInput/OTPInput";
 import Button from "../../components/ui/Button/Button";
