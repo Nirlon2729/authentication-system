@@ -1,0 +1,37 @@
+.otp-footer{
+    margin-top:24px;
+    text-align:center;
+}
+
+.otp-timer{
+    color:var(--text-light);
+    font-size:15px;
+}
+
+.otp-timer strong{
+    color:var(--primary);
+}
+
+.resend-btn{
+
+    background:none;
+
+    border:none;
+
+    color:var(--primary);
+
+    font-weight:600;
+
+    cursor:pointer;
+
+    transition:var(--transition);
+
+    font-size:15px;
+
+}
+
+.resend-btn:hover{
+
+    color:var(--primary-dark);
+
+}

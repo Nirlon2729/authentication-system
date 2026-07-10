@@ -1,0 +1,58 @@
+:root {
+
+  /* Primary */
+
+  --primary:#2563EB;
+  --primary-dark:#1D4ED8;
+
+  /* Success */
+
+  --success:#22C55E;
+
+  /* Danger */
+
+  --danger:#EF4444;
+
+  /* Warning */
+
+  --warning:#F59E0B;
+
+  /* Background */
+
+  --background:#F8FAFC;
+
+  /* Cards */
+
+  --surface:#FFFFFF;
+
+  /* Text */
+
+  --text:#0F172A;
+
+  --text-light:#64748B;
+
+  /* Border */
+
+  --border:#E2E8F0;
+
+  /* Radius */
+
+  --radius-sm:10px;
+
+  --radius-md:14px;
+
+  --radius-lg:20px;
+
+  /* Shadow */
+
+  --shadow-sm:
+      0 2px 8px rgba(15,23,42,.05);
+
+  --shadow-md:
+      0 10px 35px rgba(15,23,42,.08);
+
+  /* Animation */
+
+  --transition:.25s ease;
+
+}
