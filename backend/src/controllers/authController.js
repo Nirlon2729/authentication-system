@@ -181,13 +181,15 @@ const signupComplete = asyncHandler(async (req, res) => {
   });
 
   // Welcome Email
-  await sendEmail({
-    to: user.email,
-    subject: "Welcome to Auth Portal 🎉",
-    html: welcomeTemplate(
-      user.fullName
-    ),
-  });
+  try {
+    await sendEmail({
+      to: user.email,
+      subject: "Welcome to Auth Portal 🎉",
+      html: welcomeTemplate(user.fullName),
+    });
+  } catch (emailError) {
+    console.error("❌ Failed to send welcome email:", emailError.message);
+  }
 
   // JWT
   const token = generateJWT({
@@ -238,6 +240,17 @@ const signup = asyncHandler(async (req, res) => {
     phone,
     password: hashedPassword,
   });
+
+  // Welcome Email
+  try {
+    await sendEmail({
+      to: user.email,
+      subject: "Welcome to Auth Portal 🎉",
+      html: welcomeTemplate(user.fullName),
+    });
+  } catch (emailError) {
+    console.error("❌ Failed to send welcome email:", emailError.message);
+  }
 
   const token = generateJWT({
     id: user._id,
@@ -376,6 +389,17 @@ const googleLogin = asyncHandler(async (req, res) => {
       password: "",
       hasPassword: false,
     });
+
+    // Welcome Email
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: "Welcome to Auth Portal 🎉",
+        html: welcomeTemplate(user.fullName),
+      });
+    } catch (emailError) {
+      console.error("❌ Failed to send Google welcome email:", emailError.message);
+    }
   }
 
   const token = generateJWT({

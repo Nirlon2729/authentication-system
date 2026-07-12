@@ -97,6 +97,13 @@ export const changePassword = async (passwordData) => {
 
   return response.data;
 };
+export const requestChangePasswordOTP = async () => {
+  const response = await api.post(
+    "/profile/change-password/request"
+  );
+
+  return response.data;
+};
 export const requestCreatePasswordOTP = async () => {
   const response = await api.post(
     "/profile/create-password/request"

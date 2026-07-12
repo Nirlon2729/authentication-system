@@ -13,6 +13,7 @@ const {
   uploadProfilePicture,
   deleteAccount,
   changeUserPassword,
+  requestChangePasswordOTP,
   requestCreatePasswordOTP,
   createPassword,
   getUserSessions,
@@ -43,6 +44,11 @@ router.delete(
   "/",
   authMiddleware,
   deleteAccount
+);
+router.post(
+  "/change-password/request",
+  authMiddleware,
+  requestChangePasswordOTP
 );
 router.patch(
   "/change-password",

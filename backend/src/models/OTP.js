@@ -46,6 +46,7 @@ const otpSchema = new mongoose.Schema(
         "CREATE_PASSWORD",
         "SIGNUP",
         "CHANGE_EMAIL",
+        "CHANGE_PASSWORD",
       ],
       required: true,
     },

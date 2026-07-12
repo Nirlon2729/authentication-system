@@ -9,6 +9,7 @@ const sendEmail = require("../services/emailService");
 const compareOTP = require("../utils/compareOTP");
 const emailChangedOldTemplate = require("../templates/email/emailChangedOldTemplate");
 const emailChangedNewTemplate = require("../templates/email/emailChangedNewTemplate");
+const passwordChangedTemplate = require("../templates/email/passwordChangedTemplate");
 const {
   updateProfile,
   changePassword,
@@ -138,6 +139,7 @@ const changeUserPassword = async (req, res) => {
     const {
       currentPassword,
       newPassword,
+      otp,
     } = req.body;
 
     if (req.user.provider !== "local") {
@@ -145,6 +147,26 @@ const changeUserPassword = async (req, res) => {
         success: false,
         message:
           "Google accounts cannot change password.",
+      });
+    }
+
+    if (!otp) {
+      return res.status(400).json({
+        success: false,
+        message: "Verification code (OTP) is required.",
+      });
+    }
+
+    // Verify OTP first
+    const otpRecord = await findVerifiedOTPByType(
+      req.user.email,
+      "CHANGE_PASSWORD"
+    );
+
+    if (!otpRecord) {
+      return res.status(400).json({
+        success: false,
+        message: "Please verify your OTP code first.",
       });
     }
 
@@ -169,9 +191,66 @@ const changeUserPassword = async (req, res) => {
       hashedPassword
     );
 
+    // Clean up OTP record
+    await deleteOTP(req.user.email);
+
+    // Send confirmation email
+    try {
+      await sendEmail({
+        to: req.user.email,
+        subject: "Security Alert: Password Changed",
+        html: passwordChangedTemplate(req.user.fullName),
+      });
+    } catch (emailError) {
+      console.error("❌ Failed to send password changed email:", emailError.message);
+    }
+
     res.status(200).json({
       success: true,
       message: "Password changed successfully.",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+const requestChangePasswordOTP = async (req, res) => {
+  try {
+    if (req.user.provider !== "local") {
+      return res.status(400).json({
+        success: false,
+        message: "Only local accounts can request password change OTP.",
+      });
+    }
+
+    await deleteOTP(req.user.email);
+
+    const otp = generateOTP();
+
+    const hashedOTP = await hashOTP(otp);
+
+    await createOTP({
+      user: req.user._id,
+      email: req.user.email,
+      phone: req.user.phone,
+      otp: hashedOTP,
+      type: "CHANGE_PASSWORD",
+      deliveryMethod: "EMAIL",
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+    });
+
+    await sendEmail({
+      to: req.user.email,
+      subject: "Change Password OTP Verification",
+      html: otpTemplate(req.user.fullName, otp),
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "OTP sent successfully to your registered email.",
     });
   } catch (error) {
     res.status(500).json({
@@ -514,6 +593,7 @@ module.exports = {
   uploadProfilePicture,
   deleteAccount,
   changeUserPassword,
+  requestChangePasswordOTP,
   requestCreatePasswordOTP,
   createPassword,
   getUserSessions,
