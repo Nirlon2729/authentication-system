@@ -1,9 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { motion } from "framer-motion";
 import AuthLayout from "../../layouts/AuthLayout";
-import { Mail, Lock } from "lucide-react";
 import Input from "../../components/ui/Input/Input";
 import PasswordInput from "../../components/ui/PasswordInput/PasswordInput";
 import Checkbox from "../../components/ui/Checkbox/Checkbox";
@@ -127,23 +125,6 @@ const Login = () => {
       title="Welcome Back 👋"
       subtitle="Sign in to continue to your account"
     >
-      <motion.div
-        initial={{
-          opacity: 0,
-          y: 30,
-        }}
-        animate={{
-          opacity: 1,
-          y: 0,
-        }}
-        transition={{
-          duration: .5,
-        }}
-      >
-
-        ...
-
-      </motion.div>
       <form onSubmit={handleLogin}>
         <Input
 
