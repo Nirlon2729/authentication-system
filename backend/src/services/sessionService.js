@@ -1,24 +1,22 @@
 const Session = require("../models/Session");
 
-
-
 const createSession = async (sessionData) => {
   // Make previous sessions non-current
-  await Session.updateMany(
-    {
-      user: sessionData.user,
-    },
-    {
-      isCurrent: false,
-    }
-  );
+  if (sessionData.user) {
+    await Session.updateMany(
+      {
+        user: sessionData.user,
+      },
+      {
+        isCurrent: false,
+      }
+    );
+  }
 
   return await Session.create(sessionData);
 };
 
-const findSessionByRefreshToken = async (
-  refreshToken
-) => {
+const findSessionByRefreshToken = async (refreshToken) => {
   return await Session.findOne({
     refreshToken,
     isRevoked: false,
@@ -30,17 +28,13 @@ const findUserSessions = async (userId) => {
     user: userId,
     isRevoked: false,
   })
-    .select(
-      "-refreshToken -userAgent -__v"
-    )
+    .select("-refreshToken -userAgent -__v")
     .sort({
       lastActive: -1,
     });
 };
 
-const updateLastActive = async (
-  sessionId
-) => {
+const updateLastActive = async (sessionId) => {
   return await Session.findByIdAndUpdate(
     sessionId,
     {
@@ -52,13 +46,12 @@ const updateLastActive = async (
   );
 };
 
-const revokeSession = async (
-  sessionId
-) => {
+const revokeSession = async (sessionId) => {
   return await Session.findByIdAndUpdate(
     sessionId,
     {
       isRevoked: true,
+      isCurrent: false,
     },
     {
       new: true,
@@ -66,15 +59,27 @@ const revokeSession = async (
   );
 };
 
-const revokeAllSessions = async (
-  userId
-) => {
+const revokeCurrentSession = async (userId) => {
+  return await Session.updateMany(
+    {
+      user: userId,
+      isCurrent: true,
+    },
+    {
+      isRevoked: true,
+      isCurrent: false,
+    }
+  );
+};
+
+const revokeAllSessions = async (userId) => {
   return await Session.updateMany(
     {
       user: userId,
     },
     {
       isRevoked: true,
+      isCurrent: false,
     }
   );
 };
@@ -85,5 +90,6 @@ module.exports = {
   findUserSessions,
   updateLastActive,
   revokeSession,
+  revokeCurrentSession,
   revokeAllSessions,
 };

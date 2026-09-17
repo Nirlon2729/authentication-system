@@ -1,0 +1,168 @@
+/* =========================================
+   Nirlon Landing / Welcome Page Styles
+========================================= */
+
+.landing-page {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  background-color: var(--bg-main);
+  overflow-x: hidden;
+}
+
+.landing-hero-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 3rem 2rem 4rem 2rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3rem;
+  align-items: center;
+  flex: 1;
+}
+
+.hero-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.hero-title {
+  font-size: 3.5rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--text-primary);
+  line-height: 1.15;
+}
+
+.highlight-crimson {
+  color: var(--crimson-main);
+}
+
+.hero-subtitle {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  max-width: 520px;
+}
+
+.feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin: 1rem 0;
+}
+
+.feature-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.feature-icon-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--crimson-light);
+  color: var(--crimson-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid var(--crimson-border);
+}
+
+.feature-text h4 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.feature-text p {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+
+.hero-cta-row {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+/* 3D Shield Illustration */
+.hero-illustration-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.shield-3d-podium {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.shield-card-3d {
+  width: 220px;
+  height: 250px;
+  border-radius: 30px;
+  background: linear-gradient(135deg, #991b1b, #800020);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: 0 25px 60px rgba(128, 0, 32, 0.4);
+  transform: perspective(1000px) rotateY(-10deg) rotateX(5deg);
+  transition: var(--transition-normal);
+}
+
+.shield-card-3d:hover {
+  transform: perspective(1000px) rotateY(0deg) rotateX(0deg) scale(1.05);
+}
+
+.shield-3d-icon {
+  opacity: 0.95;
+}
+
+.lock-3d-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #ffffff;
+}
+
+.podium-base {
+  width: 280px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(128, 0, 32, 0.15);
+  margin-top: 1.5rem;
+  filter: blur(8px);
+}
+
+.landing-footer {
+  width: 100%;
+  text-align: center;
+  padding: 1.5rem 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-color);
+}
+
+@media (max-width: 900px) {
+  .landing-hero-container {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+    padding: 2rem 1.25rem;
+  }
+  .hero-title {
+    font-size: 2.6rem;
+  }
+}

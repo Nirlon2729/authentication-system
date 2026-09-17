@@ -1,25 +1,59 @@
-import "./DashboardLayout.css";
-import { motion } from "framer-motion";
-
+import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import Navbar from "./Navbar";
 import Sidebar from "./Sidebar";
+import "./DashboardLayout.css";
 
 const DashboardLayout = ({ children }) => {
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const location = useLocation();
+
+  // Close mobile sidebar on route transition
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [location.pathname]);
+
+  // Close mobile sidebar on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setMobileSidebarOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   return (
-    <div className="dashboard-layout">
-      <Navbar />
-
-      <div className="dashboard-container">
+    <div className="app-layout">
+      {/* Desktop Sidebar */}
+      <aside className="desktop-sidebar-wrapper">
         <Sidebar />
+      </aside>
 
-        <motion.main 
-          className="dashboard-main"
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: "easeOut" }}
-        >
-          {children}
-        </motion.main>
+      {/* Mobile Drawer Backdrop */}
+      {mobileSidebarOpen && (
+        <div
+          className="mobile-sidebar-backdrop"
+          onClick={() => setMobileSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Mobile Drawer Sidebar */}
+      <aside className={`mobile-sidebar-drawer ${mobileSidebarOpen ? "open" : ""}`}>
+        <Sidebar onCloseMobile={() => setMobileSidebarOpen(false)} isMobile />
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="main-content-area">
+        <Navbar onToggleMobileMenu={() => setMobileSidebarOpen(!mobileSidebarOpen)} />
+
+        <main className="main-page-content">
+          <div className="page-content-container">
+            {children}
+          </div>
+        </main>
       </div>
     </div>
   );

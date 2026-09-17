@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
-
 import "./Input.css";
 
 const Input = ({
@@ -13,9 +12,9 @@ const Input = ({
   error = "",
   disabled = false,
   required = false,
+  icon = null,
 }) => {
-  const [showPassword, setShowPassword] =
-    useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const inputType =
     type === "password"
@@ -26,19 +25,13 @@ const Input = ({
 
   return (
     <div className="input-group">
-
-      {label && (
-        <label className="input-label">
-          {label}
-        </label>
-      )}
+      {label && <label className="input-label">{label}</label>}
 
       <div className="input-wrapper">
+        {icon && <div className="input-prefix-icon">{icon}</div>}
 
         <input
-          className={`custom-input ${
-            error ? "input-error" : ""
-          }`}
+          className={`custom-input ${error ? "input-error" : ""} ${icon ? "has-prefix" : ""}`}
           type={inputType}
           name={name}
           value={value}
@@ -52,26 +45,14 @@ const Input = ({
           <button
             type="button"
             className="toggle-password"
-            onClick={() =>
-              setShowPassword(!showPassword)
-            }
+            onClick={() => setShowPassword(!showPassword)}
           >
-            {showPassword ? (
-              <EyeOff size={20} />
-            ) : (
-              <Eye size={20} />
-            )}
+            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
           </button>
         )}
-
       </div>
 
-      {error && (
-        <p className="input-error-text">
-          {error}
-        </p>
-      )}
-
+      {error && <p className="input-error-text">{error}</p>}
     </div>
   );
 };

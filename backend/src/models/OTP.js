@@ -47,6 +47,8 @@ const otpSchema = new mongoose.Schema(
         "SIGNUP",
         "CHANGE_EMAIL",
         "CHANGE_PASSWORD",
+        "CREATE_ADMIN",
+        "VERIFY_EMAIL",
       ],
       required: true,
     },

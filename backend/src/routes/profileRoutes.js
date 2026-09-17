@@ -20,8 +20,9 @@ const {
   logoutSession,
   requestEmailChangeOTP,
   verifyEmailChangeOTP,
+  requestVerifyEmailOTP,
+  confirmVerifyEmailOTP,
 } = require("../controllers/profileController");
-
 
 router.get(
   "/",
@@ -86,4 +87,16 @@ router.patch(
   authMiddleware,
   verifyEmailChangeOTP
 );
+
+router.post(
+  "/verify-email/request",
+  authMiddleware,
+  requestVerifyEmailOTP
+);
+router.post(
+  "/verify-email/confirm",
+  authMiddleware,
+  confirmVerifyEmailOTP
+);
+
 module.exports = router;

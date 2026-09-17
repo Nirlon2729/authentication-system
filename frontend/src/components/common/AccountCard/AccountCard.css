@@ -1,36 +1,53 @@
-.account-card{
-    background:#fff;
-    border-radius:15px;
-    padding:30px;
-    box-shadow:0 10px 30px rgba(0,0,0,.08);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    border: 1px solid #f1f5f9;
+/* =========================================
+   Luxury AccountCard Styling
+========================================= */
+
+.account-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: 2.25rem 2rem;
+  box-shadow: var(--shadow-md), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  transition: var(--transition-normal);
+  border: 1px solid var(--border-color);
 }
 
 .account-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 16px 36px rgba(0,0,0,.12);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg), 0 0 30px rgba(99, 102, 241, 0.15);
+  border-color: var(--border-color-hover);
 }
 
-.account-card h2{
-    margin-bottom:25px;
+.account-card h2 {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-bottom: 1.6rem;
+  letter-spacing: -0.02em;
 }
 
-.info-row{
-    display:flex;
-    justify-content:space-between;
-    padding:15px 0;
-    border-bottom:1px solid #ececec;
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.92rem 0;
+  border-bottom: 1px solid var(--border-color);
 }
 
-.info-row:last-child{
-    border-bottom:none;
+.info-row:last-child {
+  border-bottom: none;
 }
 
-.info-row span{
-    color:#777;
+.info-row span {
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  font-weight: 600;
 }
 
-.info-row strong{
-    color:#222;
+.info-row strong {
+  color: var(--text-primary);
+  font-size: 0.94rem;
+  font-weight: 700;
+  text-transform: capitalize;
 }

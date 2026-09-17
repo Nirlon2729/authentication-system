@@ -8,6 +8,7 @@ const PublicRoute = ({ children }) => {
   const allowedRoutes = [
     "/forgot-password",
     "/verify-otp",
+    "/verify-signup-otp",
     "/reset-password",
   ];
 
@@ -28,7 +29,8 @@ const PublicRoute = ({ children }) => {
   }
 
   if (user && !allowedRoutes.includes(location.pathname)) {
-    return <Navigate to="/dashboard" replace />;
+    const targetPath = user.role === "admin" ? "/admin" : "/dashboard";
+    return <Navigate to={targetPath} replace />;
   }
 
   return children;

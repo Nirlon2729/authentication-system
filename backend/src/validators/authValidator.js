@@ -14,18 +14,15 @@ const signupValidator = [
     .withMessage("Please enter a valid email.")
     .normalizeEmail(),
 
+  body("phone")
+    .optional({ checkFalsy: true })
+    .trim(),
+
   body("password")
     .isLength({ min: 8 })
-    .withMessage("Password must be at least 8 characters.")
-    .matches(/[A-Z]/)
-    .withMessage("Password must contain one uppercase letter.")
-    .matches(/[a-z]/)
-    .withMessage("Password must contain one lowercase letter.")
-    .matches(/[0-9]/)
-    .withMessage("Password must contain one number.")
-    .matches(/[!@#$%^&*(),.?":{}|<>]/)
-    .withMessage("Password must contain one special character."),
+    .withMessage("Password must be at least 8 characters."),
 ];
+
 const loginValidator = [
   body("email")
     .trim()
@@ -37,6 +34,7 @@ const loginValidator = [
     .notEmpty()
     .withMessage("Password is required."),
 ];
+
 const forgotPasswordValidator = [
   body("email")
     .trim()
@@ -44,29 +42,38 @@ const forgotPasswordValidator = [
     .withMessage("Please enter a valid email.")
     .normalizeEmail(),
 ];
+
 const verifyOTPValidator = [
   body("email")
+    .trim()
     .isEmail()
-    .withMessage("Valid email is required."),
+    .withMessage("Valid email is required.")
+    .normalizeEmail(),
 
   body("otp")
+    .trim()
     .isLength({ min: 6, max: 6 })
     .withMessage("OTP must be 6 digits."),
 ];
+
 const resetPasswordValidator = [
   body("email")
+    .trim()
     .isEmail()
-    .withMessage("Valid email is required."),
+    .withMessage("Valid email is required.")
+    .normalizeEmail(),
 
   body("password")
     .isLength({ min: 8 })
     .withMessage("Password must be at least 8 characters."),
 ];
+
 const googleLoginValidator = [
   body("idToken")
     .notEmpty()
     .withMessage("Google ID Token is required."),
 ];
+
 module.exports = {
   signupValidator,
   loginValidator,

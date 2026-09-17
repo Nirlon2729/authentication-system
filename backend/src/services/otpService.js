@@ -24,10 +24,10 @@ const verifyOTP = async (id) => {
   );
 };
 
-const deleteOTP = async (email) => {
-  return await OTP.deleteMany({
-    email,
-  });
+const deleteOTP = async (email, type) => {
+  const query = { email };
+  if (type) query.type = type;
+  return await OTP.deleteMany(query);
 };
 const findOTPByEmail = async (email) => {
   return await OTP.findOne({

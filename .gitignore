@@ -2,6 +2,10 @@ node_modules
 .env
 backend/.env
 frontend/.env
+smart-gateway/.env
+smart-gateway/*.joblib
+smart-gateway/__pycache__/
+smart-gateway/.pytest_cache/
 dist
 build
 .vscode

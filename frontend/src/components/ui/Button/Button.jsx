@@ -1,7 +1,5 @@
-import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import clsx from "clsx";
-
 import "./Button.css";
 
 const Button = ({
@@ -16,17 +14,7 @@ const Button = ({
   icon = null,
 }) => {
   return (
-    <motion.button
-      whileHover={
-        !disabled && !loading
-          ? { scale: 1.02 }
-          : {}
-      }
-      whileTap={
-        !disabled && !loading
-          ? { scale: 0.98 }
-          : {}
-      }
+    <button
       type={type}
       onClick={onClick}
       disabled={disabled || loading}
@@ -45,7 +33,7 @@ const Button = ({
             size={18}
             className="btn-spinner"
           />
-          Please wait...
+          <span>Please wait...</span>
         </>
       ) : (
         <>
@@ -53,7 +41,7 @@ const Button = ({
           {children}
         </>
       )}
-    </motion.button>
+    </button>
   );
 };
 

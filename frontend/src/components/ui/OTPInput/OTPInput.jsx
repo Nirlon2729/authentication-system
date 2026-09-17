@@ -1,41 +1,40 @@
 import { useEffect, useRef } from "react";
 import "./OTPInput.css";
 
-const OTPInput = ({ value, onChange }) => {
+const OTPInput = ({ value = "", onChange }) => {
   const inputRefs = useRef([]);
-useEffect(() => {
-  inputRefs.current[0]?.focus();
-}, []);
+
+  useEffect(() => {
+    inputRefs.current[0]?.focus();
+  }, []);
+
+  const safeValue = typeof value === "string" ? value : (value?.target?.value || "");
 
   const otp = Array.from(
-  { length: 6 },
-  (_, index) => value[index] || ""
-);
+    { length: 6 },
+    (_, index) => safeValue[index] || ""
+  );
+
+  const triggerChange = (newStr) => {
+    if (!onChange) return;
+    onChange(newStr);
+  };
 
   const handleChange = (index, e) => {
     const val = e.target.value.replace(/\D/g, "");
 
+    const newOTP = [...otp];
     if (!val) {
-      const newOTP = [...otp];
       newOTP[index] = "";
-      onChange({
-        target: {
-          value: newOTP.join(""),
-        },
-      });
+      triggerChange(newOTP.join(""));
       return;
     }
 
     const digit = val.slice(-1);
-
-    const newOTP = [...otp];
     newOTP[index] = digit;
 
-    onChange({
-      target: {
-        value: newOTP.join(""),
-      },
-    });
+    const updated = newOTP.join("");
+    triggerChange(updated);
 
     if (index < 5) {
       inputRefs.current[index + 1]?.focus();
@@ -43,11 +42,7 @@ useEffect(() => {
   };
 
   const handleKeyDown = (index, e) => {
-    if (
-      e.key === "Backspace" &&
-      !otp[index] &&
-      index > 0
-    ) {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
   };
@@ -62,17 +57,9 @@ useEffect(() => {
 
     if (!pasted) return;
 
-    onChange({
-      target: {
-        value: pasted,
-      },
-    });
+    triggerChange(pasted);
 
-    const nextIndex = Math.min(
-      pasted.length,
-      5
-    );
-
+    const nextIndex = Math.min(pasted.length, 5);
     inputRefs.current[nextIndex]?.focus();
   };
 
@@ -81,20 +68,14 @@ useEffect(() => {
       {otp.map((digit, index) => (
         <input
           key={index}
-          ref={(el) =>
-            (inputRefs.current[index] = el)
-          }
+          ref={(el) => (inputRefs.current[index] = el)}
           className="otp-box"
           type="text"
           inputMode="numeric"
           maxLength={1}
           value={digit}
-          onChange={(e) =>
-            handleChange(index, e)
-          }
-          onKeyDown={(e) =>
-            handleKeyDown(index, e)
-          }
+          onChange={(e) => handleChange(index, e)}
+          onKeyDown={(e) => handleKeyDown(index, e)}
           onPaste={handlePaste}
         />
       ))}

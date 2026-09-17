@@ -14,8 +14,8 @@ const sendEmail = async ({ to, subject, html }) => {
         },
         body: JSON.stringify({
           sender: {
-            name: "Auth Portal",
-            email: process.env.EMAIL_USER || "no-reply@authportal.com"
+            name: "Security Center",
+            email: process.env.EMAIL_USER || "no-reply@security.com"
           },
           to: [{ email: to }],
           subject: subject,

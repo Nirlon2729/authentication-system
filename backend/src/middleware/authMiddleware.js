@@ -3,9 +3,17 @@ const User = require("../models/User");
 
 const authMiddleware = async (req, res, next) => {
   try {
+    if (!process.env.JWT_SECRET) {
+      console.error("❌ JWT_SECRET environment variable is missing.");
+      return res.status(500).json({
+        success: false,
+        message: "Internal server error: auth configuration missing.",
+      });
+    }
+
     let token = null;
 
-    // Authorization Header
+    // 1. Authorization Header
     if (
       req.headers.authorization &&
       req.headers.authorization.startsWith("Bearer")
@@ -13,7 +21,7 @@ const authMiddleware = async (req, res, next) => {
       token = req.headers.authorization.split(" ")[1];
     }
 
-    // Cookie
+    // 2. Cookie fallback
     if (!token && req.cookies?.token) {
       token = req.cookies.token;
     }
@@ -25,9 +33,30 @@ const authMiddleware = async (req, res, next) => {
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      if (err.name === "TokenExpiredError") {
+        return res.status(401).json({
+          success: false,
+          message: "Token expired. Please login again.",
+        });
+      }
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token.",
+      });
+    }
 
-  const user = await User.findById(decoded.id);
+    if (!decoded || !decoded.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token payload.",
+      });
+    }
+
+    const user = await User.findById(decoded.id).select("-password");
 
     if (!user) {
       return res.status(401).json({
@@ -44,12 +73,12 @@ const authMiddleware = async (req, res, next) => {
     }
 
     req.user = user;
-
     next();
   } catch (error) {
+    console.error("Auth middleware error:", error.message);
     return res.status(401).json({
       success: false,
-      message: "Invalid or expired token.",
+      message: "Authentication failed.",
     });
   }
 };

@@ -4,50 +4,58 @@ import {
   useEffect,
   useState,
 } from "react";
-import { logout as logoutAPI } from "../services/authService";
-import { getProfile } from "../services/authService";
+import { logout as logoutAPI, getProfile } from "../services/authService";
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-
   const [loading, setLoading] = useState(true);
 
   const login = (userData, token) => {
-    localStorage.setItem("token", token);
-
-    setUser(userData);
+    if (token) localStorage.setItem("token", token);
+    
+    if (userData && userData.email) {
+      if (userData.isVerified) {
+        localStorage.setItem(`verified_email_${userData.email}`, "true");
+      }
+      const isEmailVerifiedStored = localStorage.getItem(`verified_email_${userData.email}`) === "true";
+      userData.isVerified = userData.isVerified || isEmailVerifiedStored;
+    }
+    setUser({ ...userData });
   };
 
   const logout = async () => {
-  try {
-    await logoutAPI();
-  } catch (error) {
-    console.error(error);
-  } finally {
-    localStorage.removeItem("token");
-    setUser(null);
-  }
-};
+    try {
+      await logoutAPI();
+    } catch (error) {
+      console.error(error);
+    } finally {
+      localStorage.removeItem("token");
+      setUser(null);
+    }
+  };
 
   const loadUser = async () => {
     try {
       const token = localStorage.getItem("token");
-
       if (!token) {
         setLoading(false);
         return;
       }
 
       const response = await getProfile();
+      const loadedUser = response.user;
 
-      setUser(response.user);
+      if (loadedUser && loadedUser.email) {
+        const isEmailVerifiedStored = localStorage.getItem(`verified_email_${loadedUser.email}`) === "true";
+        if (isEmailVerifiedStored) loadedUser.isVerified = true;
+      }
+
+      setUser(loadedUser);
     } catch (error) {
       console.error(error);
-
       localStorage.removeItem("token");
-
       setUser(null);
     } finally {
       setLoading(false);
@@ -73,6 +81,7 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
+// oxlint-disable-next-line react/only-export-components
 export const useAuth = () => {
   return useContext(AuthContext);
 };

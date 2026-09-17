@@ -1,190 +1,174 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+import { ShieldCheck, ArrowRight } from "lucide-react";
 
 import AuthLayout from "../../layouts/AuthLayout";
 import OTPInput from "../../components/ui/OTPInput/OTPInput";
 import Button from "../../components/ui/Button/Button";
 
 import {
-    verifyOTP,
-    signupComplete,
-    signupRequest,
+  verifyOTP,
+  signupComplete,
+  signupRequest,
 } from "../../services/authService";
 
 import { useAuth } from "../../context/AuthContext";
 
 const VerifySignupOTP = () => {
-    const navigate = useNavigate();
-    const location = useLocation();
+  const navigate = useNavigate();
+  const location = useLocation();
 
-    const { login } = useAuth();
+  const { login } = useAuth();
+  const formData = location.state?.formData;
+  const email = formData?.email || "";
 
-    const formData = location.state?.formData;
+  useEffect(() => {
+    if (!formData) {
+      toast.error("Signup session expired. Please sign up again.");
+      navigate("/signup", { replace: true });
+    }
+  }, [formData, navigate]);
 
-    const email = formData?.email || "";
-    useEffect(() => {
-        if (!formData) {
-            toast.error(
-                "Signup session expired. Please sign up again."
-            );
+  const [otp, setOtp] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [seconds, setSeconds] = useState(30);
+  const [canResend, setCanResend] = useState(false);
 
-            navigate("/signup", {
-                replace: true,
-            });
+  useEffect(() => {
+    if (canResend) return;
+
+    const timer = setInterval(() => {
+      setSeconds((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setCanResend(true);
+          return 0;
         }
-    }, [formData, navigate]);
+        return prev - 1;
+      });
+    }, 1000);
 
-    const [otp, setOtp] = useState("");
-    const [loading, setLoading] = useState(false);
+    return () => clearInterval(timer);
+  }, [canResend]);
 
-    const [seconds, setSeconds] = useState(30);
-    const [canResend, setCanResend] = useState(false);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
 
-    useEffect(() => {
-        if (canResend) return;
+    if (loading) return;
+    if (otp.length !== 6) {
+      toast.error("Please enter a valid 6-digit OTP.");
+      return;
+    }
 
-        const timer = setInterval(() => {
-            setSeconds((prev) => {
-                if (prev <= 1) {
-                    clearInterval(timer);
-                    setCanResend(true);
-                    return 0;
-                }
+    try {
+      setLoading(true);
 
-                return prev - 1;
-            });
-        }, 1000);
+      // Step 1: Verify OTP
+      await verifyOTP({
+        email,
+        otp,
+        type: "SIGNUP",
+      });
 
-        return () => clearInterval(timer);
-    }, [canResend]);
+      // Step 2: Create account
+      const response = await signupComplete({
+        email,
+      });
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+      // Step 3: Login user
+      login(response.user, response.token);
 
-        if (loading) return;
-        if (otp.length !== 6) {
-            toast.error("Please enter a valid OTP.");
-            return;
-        }
+      toast.success("Account created and verified successfully 🎉");
+      navigate("/dashboard");
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || "Signup verification failed."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        try {
-            setLoading(true);
+  const handleResendOTP = async () => {
+    if (loading) return;
+    try {
+      setLoading(true);
+      const response = await signupRequest(formData);
 
-            // Step 1: Verify OTP
-            await verifyOTP({
-                email,
-                otp,
-                type: "SIGNUP",
-            });
+      toast.success(response.message || "Verification code sent.");
+      setOtp("");
+      setSeconds(30);
+      setCanResend(false);
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || "Failed to resend code."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
-            // Step 2: Create account
-            const response = await signupComplete({
-                email,
-            });
-
-            // Step 3: Login user
-            login(
-                response.user,
-                response.token
-            );
-
-            toast.success(
-                "Account created successfully!"
-            );
-
-            navigate("/dashboard");
-        } catch (error) {
-            toast.error(
-                error.response?.data?.message ||
-                "Signup failed."
-            );
-        } finally {
-            setLoading(false);
-        }
-    };
-    const handleResendOTP = async () => {
-        if (loading) return;
-        try {
-            setLoading(true);
-
-            const response =
-                await signupRequest(formData);
-
-            toast.success(
-                response.message ||
-                "OTP sent successfully."
-            );
-
-            setOtp("");
-
-            setSeconds(30);
-
-            setCanResend(false);
-        } catch (error) {
-            toast.error(
-                error.response?.data?.message ||
-                "Failed to resend OTP."
-            );
-        } finally {
-            setLoading(false);
-        }
-    };
-    return (
-        <AuthLayout
-            title="Verify Email"
-            subtitle={`Enter the OTP sent to ${email}`}
+  return (
+    <AuthLayout>
+      <div style={{ textAlign: "center", marginBottom: "1.25rem" }}>
+        <div
+          style={{
+            width: "48px",
+            height: "48px",
+            borderRadius: "var(--radius-md)",
+            background: "var(--bg-subtle)",
+            color: "var(--text-primary)",
+            border: "1px solid var(--border-color)",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: "0.75rem",
+          }}
         >
-            <form onSubmit={handleSubmit}>
-                <OTPInput
-                    value={otp}
-                    onChange={(e) =>
-                        setOtp(e.target.value)
-                    }
-                />
+          <ShieldCheck size={24} />
+        </div>
+        <h1 className="nirlon-title">Verify Email</h1>
+        <p className="nirlon-subtitle" style={{ marginTop: "0.25rem" }}>
+          Enter the 6-digit verification code sent to <strong>{email}</strong>
+        </p>
+      </div>
 
-                <Button
-                    type="submit"
-                    loading={loading}
-                >
-                    Verify & Create Account
-                </Button>
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+        <OTPInput value={otp} onChange={(val) => setOtp(typeof val === "string" ? val : val.target.value)} />
 
-                <div
-                    style={{
-                        marginTop: "20px",
-                        textAlign: "center",
-                    }}
-                >
-                    {canResend ? (
-                        <button
-                            type="button"
-                            onClick={handleResendOTP}
-                            disabled={loading}
-                            style={{
-                                border: "none",
-                                background: "none",
-                                color: loading ? "#9ca3af" : "#2563eb",
-                                cursor: loading ? "not-allowed" : "pointer",
-                            }}
-                        >
-                            Resend OTP
-                        </button>
-                    ) : (
-                        <p>
-                            Resend OTP in {seconds}s
-                        </p>
-                    )}
-                </div>
-            </form>
+        <Button type="submit" loading={loading} fullWidth>
+          <span>Verify & Complete Registration</span>
+          <ArrowRight size={18} />
+        </Button>
 
-            <div className="auth-footer">
-                <Link to="/signup">
-                    Back
-                </Link>
-            </div>
-        </AuthLayout>
-    );
+        <div style={{ textAlign: "center", fontSize: "0.84rem" }}>
+          {canResend ? (
+            <button
+              type="button"
+              onClick={handleResendOTP}
+              disabled={loading}
+              style={{
+                border: "none",
+                background: "none",
+                color: "var(--text-primary)",
+                cursor: loading ? "not-allowed" : "pointer",
+                fontWeight: "600",
+              }}
+            >
+              Resend Code
+            </button>
+          ) : (
+            <span style={{ color: "var(--text-muted)" }}>Resend code in {seconds}s</span>
+          )}
+        </div>
+      </form>
+
+      <div className="auth-footer">
+        <Link to="/signup">Back to Sign Up</Link>
+      </div>
+    </AuthLayout>
+  );
 };
 
 export default VerifySignupOTP;

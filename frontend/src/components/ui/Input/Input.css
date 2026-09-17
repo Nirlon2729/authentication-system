@@ -1,95 +1,98 @@
-.input-group{
-    margin-bottom:22px;
+/* =========================================
+   Clean SaaS Input Styling
+========================================= */
+
+.input-group {
+  margin-bottom: 1rem;
+  width: 100%;
 }
 
-.input-label{
-
-    display:block;
-
-    margin-bottom:8px;
-
-    font-size:14px;
-
-    font-weight:600;
-
-    color:var(--text);
-
+.input-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
-.input-wrapper{
-
-    position:relative;
-
+.input-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
 }
 
-.custom-input{
-
-    width:100%;
-
-    padding:14px 18px;
-
-    border:1px solid var(--border);
-
-    border-radius:14px;
-
-    background:white;
-
-    color:var(--text);
-
-    font-size:15px;
-
-    transition:var(--transition);
-
+.input-prefix-icon {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
 }
 
-.custom-input:focus{
-
-    outline:none;
-
-    border-color:var(--primary);
-
-    box-shadow:0 0 0 4px rgba(37,99,235,.12);
-
+.custom-input {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  font-weight: 400;
+  transition: var(--transition-fast);
 }
 
-.custom-input::placeholder{
-
-    color:#94A3B8;
-
+.custom-input.has-prefix {
+  padding-left: 2.35rem;
 }
 
-.input-error{
-
-    border-color:var(--danger);
-
+.custom-input:focus {
+  outline: none;
+  border-color: var(--border-color-focus);
 }
 
-.input-error-text{
-
-    color:var(--danger);
-
-    font-size:13px;
-
-    margin-top:8px;
-
+.custom-input::placeholder {
+  color: var(--text-muted);
+  font-size: 0.86rem;
 }
 
-.toggle-password{
+.custom-input:disabled {
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
 
-    position:absolute;
+.custom-input.input-error {
+  border-color: var(--danger);
+}
 
-    right:16px;
+.input-error-text {
+  color: var(--danger);
+  font-size: 0.78rem;
+  font-weight: 500;
+  margin-top: 0.3rem;
+}
 
-    top:50%;
+.toggle-password {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  border-radius: var(--radius-sm);
+}
 
-    transform:translateY(-50%);
-
-    background:none;
-
-    border:none;
-
-    cursor:pointer;
-
-    color:#64748B;
-
+.toggle-password:hover {
+  color: var(--text-primary);
 }

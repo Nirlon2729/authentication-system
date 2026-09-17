@@ -26,24 +26,33 @@ const {
   googleLoginValidator,
 } = require("../validators/authValidator");
 
+const {
+  authLimiter,
+  otpLimiter,
+  passwordResetLimiter,
+} = require("../middleware/rateLimiter");
+
 // ==============================
 // Public Routes
 // ==============================
 
 router.post(
   "/signup/request",
+  authLimiter,
   signupValidator,
   validationMiddleware,
   signupRequest
 );
 router.post(
   "/signup/complete",
+  authLimiter,
   signupComplete
 );
 
 // Signup
 router.post(
   "/signup",
+  authLimiter,
   signupValidator,
   validationMiddleware,
   signup
@@ -52,6 +61,7 @@ router.post(
 // Login
 router.post(
   "/login",
+  authLimiter,
   loginValidator,
   validationMiddleware,
   login
@@ -60,6 +70,7 @@ router.post(
 // google login
 router.post(
   "/google",
+  authLimiter,
   googleLoginValidator,
   validationMiddleware,
   googleLogin
@@ -68,6 +79,7 @@ router.post(
 // Forgot Password
 router.post(
   "/forgot-password",
+  passwordResetLimiter,
   forgotPasswordValidator,
   validationMiddleware,
   forgotPassword
@@ -76,6 +88,7 @@ router.post(
 // Verify OTP
 router.post(
   "/verify-otp",
+  otpLimiter,
   verifyOTPValidator,
   validationMiddleware,
   verifyOTPController
@@ -83,6 +96,7 @@ router.post(
 // reset password
 router.post(
   "/reset-password",
+  passwordResetLimiter,
   resetPasswordValidator,
   validationMiddleware,
   resetPassword

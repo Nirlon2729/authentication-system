@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
+import { ShieldCheck, Mail, KeyRound, CheckCircle2, ArrowRight } from "lucide-react";
 
 import PasswordInput from "../ui/PasswordInput/PasswordInput";
 import PasswordStrength from "../ui/PasswordStrength/PasswordStrength";
@@ -152,7 +153,7 @@ const ChangePasswordForm = () => {
         otp,
       });
 
-      toast.success(response.message || "Password changed successfully.");
+      toast.success(response.message || "Password changed successfully 🎉");
       setFormData({
         currentPassword: "",
         newPassword: "",
@@ -170,33 +171,107 @@ const ChangePasswordForm = () => {
   };
 
   return (
-    <div style={{ marginTop: "20px" }}>
-      <h2>Change Password</h2>
-      <p style={{ color: "#6b7280", marginBottom: "20px" }}>
-        Step {step} of 3
-      </p>
+    <div style={{ maxWidth: "560px", margin: "0 auto" }}>
+      {/* Step Header */}
+      <div style={{ marginBottom: "1.75rem", textAlign: "center" }}>
+        <h2
+          style={{
+            fontSize: "1.45rem",
+            fontWeight: "800",
+            color: "var(--text-primary)",
+            margin: "0 0 0.35rem 0",
+          }}
+        >
+          Change Account Password
+        </h2>
+        <p style={{ color: "var(--text-secondary)", fontSize: "0.88rem", margin: "0 0 1.25rem 0" }}>
+          For security purposes, we require identity verification before modifying your password.
+        </p>
 
-      {/* ---------------- STEP 1 ---------------- */}
+        {/* 3 Steps Progress Dots */}
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "0.6rem" }}>
+          {[1, 2, 3].map((s) => (
+            <div
+              key={s}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.4rem",
+              }}
+            >
+              <span
+                style={{
+                  width: "28px",
+                  height: "28px",
+                  borderRadius: "50%",
+                  background: step >= s ? "var(--crimson-main)" : "var(--bg-hover)",
+                  color: step >= s ? "#ffffff" : "var(--text-muted)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "0.78rem",
+                  fontWeight: "700",
+                  border: `1px solid ${step >= s ? "var(--crimson-main)" : "var(--border-color)"}`,
+                }}
+              >
+                {step > s ? <CheckCircle2 size={16} /> : s}
+              </span>
+              {s < 3 && (
+                <div
+                  style={{
+                    width: "36px",
+                    height: "2px",
+                    background: step > s ? "var(--crimson-main)" : "var(--border-color)",
+                  }}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ---------------- STEP 1: Request OTP ---------------- */}
       {step === 1 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
-          <p>
-            To change your password, we need to send a 6-digit verification code to your registered email: <strong>{user?.email}</strong>.
-          </p>
-          <Button loading={loading} onClick={handleSendOTP}>
-            Send Verification Code
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+          <div
+            style={{
+              padding: "1.25rem",
+              background: "var(--bg-hover)",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--border-color)",
+              display: "flex",
+              alignItems: "center",
+              gap: "1rem",
+            }}
+          >
+            <Mail size={24} color="var(--primary-600)" />
+            <div style={{ fontSize: "0.88rem", color: "var(--text-primary)" }}>
+              We will send a 6-digit security code to <strong>{user?.email}</strong>.
+            </div>
+          </div>
+
+          <Button loading={loading} onClick={handleSendOTP} fullWidth>
+            <span>Send Verification Code</span>
+            <ArrowRight size={16} />
           </Button>
         </div>
       )}
 
-      {/* ---------------- STEP 2 ---------------- */}
+      {/* ---------------- STEP 2: Verify OTP ---------------- */}
       {step === 2 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
-          <p>Check your inbox and enter the 6-digit verification code below.</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+          <p style={{ fontSize: "0.88rem", color: "var(--text-secondary)", textAlign: "center", margin: 0 }}>
+            Enter the 6-digit verification code sent to <strong>{user?.email}</strong>.
+          </p>
+
           <OTPInput value={otp} onChange={(e) => setOtp(e.target.value)} />
-          <Button loading={loading} onClick={handleVerifyOTP}>
-            Verify Code
+
+          <Button loading={loading} onClick={handleVerifyOTP} fullWidth>
+            <span>Verify & Continue</span>
+            <ArrowRight size={16} />
           </Button>
-          <div style={{ textAlign: "center", marginTop: "10px" }}>
+
+          <div style={{ textAlign: "center", fontSize: "0.85rem" }}>
             {canResend ? (
               <button
                 type="button"
@@ -204,29 +279,30 @@ const ChangePasswordForm = () => {
                 style={{
                   border: "none",
                   background: "none",
-                  color: "#2563eb",
+                  color: "var(--primary-600)",
                   cursor: "pointer",
-                  fontWeight: "600",
+                  fontWeight: "700",
                 }}
               >
-                Resend OTP
+                Resend Code
               </button>
             ) : (
-              <p style={{ color: "#6b7280" }}>Resend OTP in {seconds}s</p>
+              <span style={{ color: "var(--text-muted)" }}>Resend code in {seconds}s</span>
             )}
           </div>
         </div>
       )}
 
-      {/* ---------------- STEP 3 ---------------- */}
+      {/* ---------------- STEP 3: Set New Password ---------------- */}
       {step === 3 && (
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.1rem" }}>
           <PasswordInput
             label="Current Password"
             name="currentPassword"
             value={formData.currentPassword}
             onChange={handleChange}
             error={errors.currentPassword}
+            placeholder="Enter your current password"
           />
 
           <PasswordInput
@@ -235,6 +311,7 @@ const ChangePasswordForm = () => {
             value={formData.newPassword}
             onChange={handleChange}
             error={errors.newPassword}
+            placeholder="Enter a strong new password"
           />
 
           <PasswordStrength password={formData.newPassword} />
@@ -245,10 +322,11 @@ const ChangePasswordForm = () => {
             value={formData.confirmPassword}
             onChange={handleChange}
             error={errors.confirmPassword}
+            placeholder="Re-type new password"
           />
 
-          <Button type="submit" loading={loading}>
-            Change Password
+          <Button type="submit" loading={loading} fullWidth>
+            <span>Update Password</span>
           </Button>
         </form>
       )}

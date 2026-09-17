@@ -1,12 +1,27 @@
+/* =========================================
+   Enterprise Checkbox Styling
+========================================= */
+
 .checkbox {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.6rem;
   cursor: pointer;
   user-select: none;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: var(--transition-fast);
+}
+
+.checkbox:hover {
+  color: var(--text-primary);
 }
 
 .checkbox input {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary-600);
+  border-radius: 4px;
+  cursor: pointer;
 }

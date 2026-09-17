@@ -1,5 +1,6 @@
 import { Routes, Route } from "react-router-dom";
 import PublicRoute from "./PublicRoute";
+import LandingPage from "../pages/landing/LandingPage";
 import Login from "../pages/auth/Login";
 import Signup from "../pages/auth/Signup";
 import ForgotPassword from "../pages/auth/ForgotPassword";
@@ -12,10 +13,17 @@ import Profile from "../pages/dashboard/Profile";
 import Settings from "../pages/dashboard/Settings";
 import Security from "../pages/dashboard/Security";
 import VerifySignupOTP from "../pages/auth/VerifySignupOTP";
+import AdminRoute from "./AdminRoute";
+import AdminDashboard from "../pages/admin/AdminDashboard";
 
 const AppRoutes = () => {
   return (
     <Routes>
+      <Route
+        path="/welcome"
+        element={<LandingPage />}
+      />
+
       <Route
         path="/"
         element={
@@ -65,15 +73,21 @@ const AppRoutes = () => {
         }
       />
 
-
-
-
       <Route
         path="/dashboard"
         element={
           <ProtectedRoute>
             <Dashboard />
           </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin"
+        element={
+          <AdminRoute>
+            <AdminDashboard />
+          </AdminRoute>
         }
       />
 
