@@ -87,6 +87,10 @@ const requestCreateAdminOTP = asyncHandler(async (req, res) => {
     });
   } catch (err) {
     console.error("Email dispatch for admin OTP failed:", err.message);
+    return res.status(500).json({
+      success: false,
+      message: `Failed to deliver verification code email to ${email}. Please try again later.`,
+    });
   }
 
   // DO NOT send OTP back in API response for security!

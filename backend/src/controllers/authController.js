@@ -146,6 +146,10 @@ const signupRequest = asyncHandler(async (req, res) => {
     });
   } catch (emailError) {
     console.error("❌ Failed to send signup OTP email:", emailError.message);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to deliver verification code email. Please check your email address or try again later.",
+    });
   }
 
   res.status(200).json({
@@ -708,6 +712,10 @@ const forgotPassword = asyncHandler(async (req, res) => {
     });
   } catch (emailError) {
     console.error("❌ Failed to send reset OTP email:", emailError.message);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to deliver password reset verification email. Please try again later.",
+    });
   }
 
   res.status(200).json({

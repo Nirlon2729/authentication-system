@@ -180,6 +180,10 @@ const requestChangePasswordOTP = asyncHandler(async (req, res) => {
     });
   } catch (emailError) {
     console.error("❌ Failed to send change password OTP email:", emailError.message);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to deliver verification code email. Please try again later.",
+    });
   }
 
   res.status(200).json({
@@ -311,6 +315,10 @@ const requestCreatePasswordOTP = asyncHandler(async (req, res) => {
     });
   } catch (emailError) {
     console.error("❌ Failed to send create password OTP email:", emailError.message);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to deliver verification code email. Please try again later.",
+    });
   }
 
   res.status(200).json({
@@ -489,6 +497,10 @@ const requestEmailChangeOTP = asyncHandler(async (req, res) => {
     });
   } catch (emailError) {
     console.error("❌ Failed to send email change OTP:", emailError.message);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to deliver verification code email. Please try again later.",
+    });
   }
 
   res.status(200).json({
@@ -612,6 +624,10 @@ const requestVerifyEmailOTP = asyncHandler(async (req, res) => {
     });
   } catch (emailError) {
     console.error("Failed to send verify email OTP:", emailError.message);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to deliver verification code email. Please try again later.",
+    });
   }
 
   res.status(200).json({

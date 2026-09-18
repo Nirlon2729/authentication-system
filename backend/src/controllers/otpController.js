@@ -50,6 +50,10 @@ const sendOTP = asyncHandler(async (req, res) => {
     });
   } catch (emailError) {
     console.error("❌ Failed to send OTP email:", emailError.message);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to deliver verification code email. Please try again later.",
+    });
   }
 
   res.status(200).json({
