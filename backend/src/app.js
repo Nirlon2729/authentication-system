@@ -61,6 +61,7 @@ const corsOptions = {
     if (
       allowed.includes(origin) ||
       origin.endsWith(".vercel.app") ||
+      origin.endsWith(".onrender.com") ||
       isLocalhost ||
       process.env.NODE_ENV !== "production"
     ) {

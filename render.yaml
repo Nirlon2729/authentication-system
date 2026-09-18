@@ -1,6 +1,7 @@
 services:
+  # Backend API Web Service
   - type: web
-    name: auth-security-gateway-backend
+    name: auth-security-backend
     runtime: node
     plan: free
     rootDir: backend
@@ -15,14 +16,70 @@ services:
       - key: MONGO_URI
         sync: false
       - key: JWT_SECRET
-        sync: false
+        generateValue: true
       - key: JWT_REFRESH_SECRET
-        sync: false
+        generateValue: true
       - key: COOKIE_SECRET
-        sync: false
+        generateValue: true
       - key: CLIENT_URL
-        sync: false
+        fromService:
+          type: static
+          name: auth-security-frontend
+          property: host
       - key: SECURITY_USER_BLOCK_MINUTES
         value: 15
       - key: SECURITY_ALERT_COOLDOWN_MINUTES
         value: 15
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        sync: false
+      - key: EMAIL_SECURE
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+
+  # Frontend React SPA Static Site
+  - type: web
+    name: auth-security-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: auth-security-backend
+          property: host
+      - key: VITE_FIREBASE_API_KEY
+        sync: false
+      - key: VITE_FIREBASE_AUTH_DOMAIN
+        sync: false
+      - key: VITE_FIREBASE_PROJECT_ID
+        sync: false
+      - key: VITE_FIREBASE_STORAGE_BUCKET
+        sync: false
+      - key: VITE_FIREBASE_MESSAGING_SENDER_ID
+        sync: false
+      - key: VITE_FIREBASE_APP_ID
+        sync: false
+
