@@ -54,9 +54,8 @@ services:
         sync: false
 
   # Frontend React SPA Static Site
-  - type: web
+  - type: static
     name: auth-security-frontend
-    runtime: static
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: dist

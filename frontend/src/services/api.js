@@ -4,12 +4,12 @@ const getBaseURL = () => {
   const envUrl = import.meta.env.VITE_API_URL;
   if (!envUrl) return "http://localhost:8000/api";
 
-  let url = envUrl.trim();
+  let url = envUrl.trim().replace(/\/+$/, "");
   if (!url.startsWith("http://") && !url.startsWith("https://")) {
     url = `https://${url}`;
   }
   if (!url.endsWith("/api")) {
-    url = `${url.replace(/\/+$/, "")}/api`;
+    url = `${url}/api`;
   }
   return url;
 };
