@@ -1,0 +1,475 @@
+/* ==========================================================================
+   AI Security Gateway & SOC Center Styling
+   Clean, Modern Enterprise SOC Theme
+========================================================================== */
+
+.soc-portal-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* =========================================
+   1. Gateway Header & Status Bar
+========================================= */
+
+.soc-header-banner {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #ffffff;
+  border-radius: var(--radius-xl);
+  padding: 1.75rem 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.3);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+.soc-banner-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.soc-live-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.soc-pulse-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.85rem;
+  border-radius: var(--radius-full);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.soc-pulse-tag.online {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+}
+
+.soc-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 10px #10b981;
+  animation: socPulse 1.8s infinite;
+}
+
+@keyframes socPulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+.soc-title {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.soc-subtitle {
+  font-size: 0.88rem;
+  color: #94a3b8;
+  margin: 0;
+  max-width: 600px;
+}
+
+.soc-system-status-pills {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.status-pill-item {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.5rem 0.85rem;
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.status-pill-item .pill-label {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.status-pill-item .pill-value {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.status-pill-item.fallback-mode {
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.status-pill-item.fallback-mode .pill-value {
+  color: #fbbf24;
+}
+
+/* =========================================
+   2. Live Traffic Overview Cards (11 metrics)
+========================================= */
+
+.soc-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.soc-metric-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1.15rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition-fast);
+}
+
+.soc-metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.soc-metric-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.soc-metric-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.soc-metric-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.soc-metric-value {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0.15rem 0 0 0;
+  line-height: 1.1;
+}
+
+.soc-icon-blue { background: rgba(59, 130, 246, 0.12); color: #3b82f6; }
+.soc-icon-green { background: rgba(16, 185, 129, 0.12); color: #10b981; }
+.soc-icon-amber { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
+.soc-icon-red { background: rgba(239, 68, 68, 0.12); color: #ef4444; }
+.soc-icon-purple { background: rgba(168, 85, 247, 0.12); color: #a855f7; }
+.soc-icon-cyan { background: rgba(6, 182, 212, 0.12); color: #06b6d4; }
+
+/* =========================================
+   3. Tabs Navigation
+========================================= */
+
+.soc-tab-nav {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.soc-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.15rem;
+  border-radius: var(--radius-md);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: var(--transition-fast);
+}
+
+.soc-tab-btn:hover {
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+.soc-tab-btn.active {
+  background: var(--color-primary);
+  color: #ffffff;
+}
+
+/* =========================================
+   4. Security Test Lab & Pipeline Animation
+========================================= */
+
+.soc-lab-container {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.soc-lab-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.soc-lab-buttons-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.sim-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  font-size: 0.84rem;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  border: 1px solid var(--border-color);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+.sim-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.sim-btn.primary { background: #2563eb; color: #ffffff; border-color: #1d4ed8; }
+.sim-btn.danger { background: #dc2626; color: #ffffff; border-color: #b91c1c; }
+.sim-btn.warning { background: #d97706; color: #ffffff; border-color: #b45309; }
+.sim-btn.purple { background: #7c3aed; color: #ffffff; border-color: #6d28d9; }
+.sim-btn.stop { background: #475569; color: #ffffff; border-color: #334155; }
+
+.soc-pipeline-visualizer {
+  background: #0b0f19;
+  border: 1px solid #1e293b;
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.pipeline-nodes-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  overflow-x: auto;
+  padding: 0.5rem 0;
+  gap: 0.5rem;
+}
+
+.pipeline-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--radius-md);
+  background: #131b2e;
+  border: 1px solid #1e293b;
+  min-width: 105px;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #94a3b8;
+  transition: all 0.3s ease;
+}
+
+.pipeline-node.active {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+}
+
+.pipeline-node.threat {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.3);
+}
+
+.pipeline-arrow {
+  color: #475569;
+  font-weight: 700;
+}
+
+/* =========================================
+   5. Live Security Feed (Terminal style)
+========================================= */
+
+.soc-feed-container {
+  background: #0b0f19;
+  border: 1px solid #1e293b;
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  font-family: var(--font-mono, monospace);
+  max-height: 420px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.feed-log-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  font-size: 0.82rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+  border-left: 3px solid transparent;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.feed-log-line.NORMAL { border-left-color: #10b981; }
+.feed-log-line.SUSPICIOUS { border-left-color: #f59e0b; }
+.feed-log-line.HIGH_RISK { border-left-color: #f97316; }
+.feed-log-line.CRITICAL, .feed-log-line.BLOCKED { border-left-color: #ef4444; }
+
+.feed-time { color: #64748b; font-size: 0.75rem; white-space: nowrap; }
+.feed-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+.feed-badge.NORMAL { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+.feed-badge.SUSPICIOUS { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+.feed-badge.HIGH_RISK { background: rgba(249, 115, 22, 0.2); color: #fb923c; }
+.feed-badge.CRITICAL, .feed-badge.BLOCKED { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+
+.feed-msg { color: #e2e8f0; flex: 1; word-break: break-word; }
+
+/* =========================================
+   6. Severity & Action Badges
+========================================= */
+
+.sev-badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.sev-badge.LOW { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+.sev-badge.MEDIUM { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+.sev-badge.HIGH { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
+.sev-badge.CRITICAL { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
+.act-badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.act-badge.ALLOWED { background: #f0fdf4; color: #166534; }
+.act-badge.MONITORED { background: #eff6ff; color: #1e40af; }
+.act-badge.RATE_LIMITED { background: #fefce8; color: #854d0e; }
+.act-badge.BLOCKED { background: #fef2f2; color: #991b1b; font-weight: 800; }
+
+/* =========================================
+   7. Charts & Analytics Grid
+========================================= */
+
+.soc-charts-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1.25rem;
+}
+
+.soc-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.soc-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.soc-card-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .soc-charts-row {
+    grid-template-columns: 1fr;
+  }
+}

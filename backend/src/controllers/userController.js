@@ -12,9 +12,13 @@ const { createOTP, deleteOTP, findOTPByEmailAndType } = require("../services/otp
 
 // Get all users for admin directory with search & role filter
 const getAllUsers = asyncHandler(async (req, res) => {
-  const { search = "", role = "all" } = req.query;
+  const { search = "", role = "all", includeTestAccounts = "false" } = req.query;
 
   const query = {};
+  if (includeTestAccounts !== "true") {
+    query.isSecurityTestAccount = { $ne: true };
+  }
+
   if (search) {
     query.$or = [
       { fullName: { $regex: search, $options: "i" } },
@@ -46,7 +50,21 @@ const requestCreateAdminOTP = asyncHandler(async (req, res) => {
     });
   }
 
-  const existingUser = await User.findOne({ email: email.toLowerCase() });
+  const normalizedEmail = email.toLowerCase().trim();
+  if (normalizedEmail.endsWith(".invalid") || normalizedEmail.startsWith("security-test")) {
+    return res.status(400).json({
+      success: false,
+      message: "Security test accounts cannot be promoted to administrator.",
+    });
+  }
+
+  const existingUser = await User.findOne({ email: normalizedEmail });
+  if (existingUser?.isSecurityTestAccount) {
+    return res.status(400).json({
+      success: false,
+      message: "Security test accounts cannot be promoted to administrator.",
+    });
+  }
   const targetName = fullName || (existingUser ? existingUser.fullName : "Admin User");
 
   const otp = generateOTP();
@@ -156,10 +174,18 @@ const updateUserRole = asyncHandler(async (req, res) => {
   const { userId } = req.params;
   const { role } = req.body;
 
-  if (!["user", "admin"].includes(role)) {
+  if (!["user", "admin", "super_admin"].includes(role)) {
     return res.status(400).json({
       success: false,
       message: "Invalid role specified.",
+    });
+  }
+
+  // Only SUPER_ADMIN can assign or revoke super_admin role
+  if (role === "super_admin" && req.user.role !== "super_admin") {
+    return res.status(403).json({
+      success: false,
+      message: "Access denied: Only a Super Admin can promote users to Super Admin.",
     });
   }
 
@@ -168,6 +194,20 @@ const updateUserRole = asyncHandler(async (req, res) => {
     return res.status(404).json({
       success: false,
       message: "User not found.",
+    });
+  }
+
+  if (user.isSecurityTestAccount) {
+    return res.status(400).json({
+      success: false,
+      message: "Security test accounts cannot have their roles modified.",
+    });
+  }
+
+  if (user.role === "super_admin" && req.user.role !== "super_admin") {
+    return res.status(403).json({
+      success: false,
+      message: "Access denied: Cannot alter the role of a Super Admin.",
     });
   }
 
@@ -193,7 +233,27 @@ const toggleUserBlock = asyncHandler(async (req, res) => {
     });
   }
 
+  if (user.role === "super_admin") {
+    return res.status(403).json({
+      success: false,
+      message: "Cannot block a Super Admin account.",
+    });
+  }
+
   user.isBlocked = !user.isBlocked;
+  if (user.isBlocked) {
+    user.blockedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15-minute default
+    user.blockReason = "Manually restricted by administrator";
+    user.blockSource = "ADMIN_MANUAL";
+    user.blockedAt = new Date();
+    user.blockedBy = req.user._id;
+  } else {
+    user.blockedUntil = null;
+    user.blockReason = "";
+    user.blockSource = null;
+    user.blockedAt = null;
+    user.blockedBy = null;
+  }
   await user.save();
 
   res.status(200).json({
@@ -212,6 +272,13 @@ const deleteUser = asyncHandler(async (req, res) => {
     return res.status(404).json({
       success: false,
       message: "User not found.",
+    });
+  }
+
+  if (user.role === "super_admin" && req.user.role !== "super_admin") {
+    return res.status(403).json({
+      success: false,
+      message: "Access denied: Only a Super Admin can delete a Super Admin account.",
     });
   }
 

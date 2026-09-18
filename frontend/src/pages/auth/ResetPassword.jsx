@@ -136,18 +136,24 @@ const ResetPassword = () => {
         <Input
           label="New Password"
           type="password"
+          name="newPassword"
+          id="newPassword"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Enter new password"
+          autoComplete="new-password"
           required
         />
 
         <Input
           label="Confirm Password"
           type="password"
+          name="confirmPassword"
+          id="confirmPassword"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           placeholder="Confirm new password"
+          autoComplete="new-password"
           required
         />
 

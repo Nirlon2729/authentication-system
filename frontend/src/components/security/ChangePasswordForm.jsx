@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
-import { ShieldCheck, Mail, KeyRound, CheckCircle2, ArrowRight } from "lucide-react";
+import { Mail, CheckCircle2, ArrowRight } from "lucide-react";
 
 import PasswordInput from "../ui/PasswordInput/PasswordInput";
 import PasswordStrength from "../ui/PasswordStrength/PasswordStrength";

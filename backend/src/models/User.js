@@ -47,7 +47,7 @@ const userSchema = new mongoose.Schema(
 
     role: {
       type: String,
-      enum: ["user", "admin"],
+      enum: ["user", "admin", "super_admin"],
       default: "user",
     },
 
@@ -59,6 +59,35 @@ const userSchema = new mongoose.Schema(
     isBlocked: {
       type: Boolean,
       default: false,
+      index: true,
+    },
+
+    blockedUntil: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+
+    blockReason: {
+      type: String,
+      default: "",
+    },
+
+    blockSource: {
+      type: String,
+      enum: ["AI_SECURITY_GATEWAY", "ADMIN_MANUAL", "SYSTEM", null],
+      default: null,
+    },
+
+    blockedAt: {
+      type: Date,
+      default: null,
+    },
+
+    blockedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
     },
 
     lastLogin: {
@@ -75,12 +104,22 @@ const userSchema = new mongoose.Schema(
       default: "",
     },
 
-    
+    isSecurityTestAccount: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
+    simulationId: {
+      type: String,
+      default: null,
+    },
   },
   {
     timestamps: true,
   }
-
 );
+
+userSchema.index({ isBlocked: 1, blockedUntil: 1 });
 
 module.exports = mongoose.model("User", userSchema);

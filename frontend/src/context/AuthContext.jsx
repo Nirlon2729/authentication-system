@@ -11,6 +11,10 @@ const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [restrictedInfo, setRestrictedInfo] = useState(null);
+
+  const isSuperAdmin = user?.role === "super_admin";
+  const isAdmin = user?.role === "admin" || isSuperAdmin;
 
   const login = (userData, token) => {
     if (token) localStorage.setItem("token", token);
@@ -54,9 +58,11 @@ export const AuthProvider = ({ children }) => {
 
       setUser(loadedUser);
     } catch (error) {
-      console.error(error);
-      localStorage.removeItem("token");
-      setUser(null);
+      console.error("Failed to load user profile:", error.message);
+      if (error.response?.status === 401) {
+        localStorage.removeItem("token");
+        setUser(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -71,6 +77,10 @@ export const AuthProvider = ({ children }) => {
       value={{
         user,
         loading,
+        isAdmin,
+        isSuperAdmin,
+        restrictedInfo,
+        setRestrictedInfo,
         login,
         logout,
         loadUser,

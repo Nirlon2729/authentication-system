@@ -8,8 +8,6 @@ import {
   Laptop,
   ShieldCheck,
   ShieldAlert,
-  Lock,
-  Sparkles,
 } from "lucide-react";
 
 import ChangePasswordForm from "../../components/security/ChangePasswordForm";
@@ -126,7 +124,6 @@ const Security = () => {
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "0.5rem",
-                border: "none",
                 background: "var(--bg-card)",
                 padding: "0.6rem 1.1rem",
                 borderRadius: "var(--radius-md)",

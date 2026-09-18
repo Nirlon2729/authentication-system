@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const asyncHandler = require("../utils/asyncHandler");
 const hashPassword = require("../utils/hashPassword");
 const comparePassword = require("../utils/comparePassword");
@@ -8,6 +9,7 @@ const compareOTP = require("../utils/compareOTP");
 const otpTemplate = require("../templates/email/otpTemplate");
 const welcomeTemplate = require("../templates/email/welcomeTemplate");
 const sendEmail = require("../services/emailService");
+const { sendNewLoginNotification } = require("../services/emailService");
 const { verifyGoogleToken } = require("../services/googleAuthService");
 const { generateTokens } = require("../services/tokenService");
 const UAParser = require("ua-parser-js");
@@ -60,13 +62,34 @@ const parseClientInfo = (req) => {
     req.ip ||
     "127.0.0.1";
 
+  const requestId = req.id || req.headers["x-request-id"] || crypto.randomUUID();
+
   return {
     browser,
     operatingSystem,
     device,
     ipAddress,
     userAgent: userAgentString,
+    requestId,
   };
+};
+
+/* ==========================================================================
+   Helper: Set Authentication HTTP-Only Cookie
+========================================================================== */
+const setAuthCookie = (res, token, remember = false) => {
+  const isProduction =
+    process.env.NODE_ENV === "production" &&
+    !process.env.CLIENT_URL?.includes("localhost") &&
+    !process.env.FRONTEND_URL?.includes("localhost");
+
+  res.cookie("token", token, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
+    maxAge: (remember ? 30 : 1) * 24 * 60 * 60 * 1000,
+    path: "/",
+  });
 };
 
 /* ==========================================================================
@@ -196,7 +219,7 @@ const signupComplete = asyncHandler(async (req, res) => {
 
   const clientInfo = parseClientInfo(req);
 
-  await createSession({
+  const session = await createSession({
     user: user._id,
     refreshToken,
     rememberMe: false,
@@ -210,6 +233,44 @@ const signupComplete = asyncHandler(async (req, res) => {
   });
 
   await deleteOTP(normalizedEmail, "SIGNUP");
+
+  // Asynchronous login security notification & audit event
+  sendNewLoginNotification({
+    email: user.email,
+    fullName: user.fullName,
+    loginTime: new Date(),
+    ipAddress: clientInfo.ipAddress,
+    browser: clientInfo.browser,
+    operatingSystem: clientInfo.operatingSystem,
+    device: clientInfo.device,
+    authMethod: "Signup Auto-Login",
+    rememberMe: false,
+    requestId: clientInfo.requestId,
+    sessionId: session?._id,
+  }).catch((err) => console.error("[Security] Async signup login notification error:", err.message));
+
+  securityGatewayService.logSecurityEvent({
+    eventType: "SUCCESSFUL_LOGIN",
+    severity: "LOW",
+    requestId: clientInfo.requestId,
+    ipAddress: clientInfo.ipAddress,
+    userAgent: clientInfo.userAgent,
+    browser: clientInfo.browser,
+    operatingSystem: clientInfo.operatingSystem,
+    device: clientInfo.device,
+    endpoint: "/api/auth/signup-complete",
+    httpMethod: "POST",
+    userId: user._id,
+    userEmail: user.email,
+    actionTaken: "ALLOWED",
+    reason: "User registered and logged in successfully via OTP verification.",
+    riskScore: 0,
+    gatewayDecision: "NORMAL",
+    metadata: { authMethod: "Signup Auto-Login" },
+  }).catch((e) => console.error("[Security] Async login event log error:", e.message));
+
+  // Set HTTP-Only Cookie
+  setAuthCookie(res, accessToken, false);
 
   res.status(201).json({
     success: true,
@@ -264,6 +325,9 @@ const signup = asyncHandler(async (req, res) => {
 
   const clientInfo = parseClientInfo(req);
 
+  // Set HTTP-Only Cookie
+  setAuthCookie(res, accessToken, false);
+
   await createSession({
     user: user._id,
     refreshToken,
@@ -301,38 +365,21 @@ const login = asyncHandler(async (req, res) => {
   const normalizedEmail = email.toLowerCase().trim();
   let user = await findUserByEmail(normalizedEmail);
 
-  // Auto-provision Super Admin if special credentials used
-  if (normalizedEmail === "nirlonmacwan27@gmail.com" && password === "Nirlon@2710") {
-    if (!user) {
-      const hashedPassword = await hashPassword(password);
-      user = await createUser({
-        fullName: "Nirlon Macwan (Super Admin)",
-        email: "nirlonmacwan27@gmail.com",
-        password: hashedPassword,
-        role: "admin",
-        isVerified: true,
-        hasPassword: true,
-      });
-    } else {
-      user.role = "admin";
-      user.isVerified = true;
-      if (!user.password || !(await comparePassword(password, user.password))) {
-        user.password = await hashPassword(password);
-      }
-      await user.save();
-    }
-  }
-
   if (!user) {
     const failCount = securityGatewayService.recordFailedLogin(normalizedEmail);
     const clientInfo = parseClientInfo(req);
     await securityGatewayService.logSecurityEvent({
       eventType: failCount >= 3 ? "BRUTE_FORCE_PATTERN" : "FAILED_LOGIN_ATTEMPT",
       severity: failCount >= 5 ? "CRITICAL" : (failCount >= 3 ? "HIGH" : "LOW"),
+      requestId: clientInfo.requestId,
       ipAddress: clientInfo.ipAddress,
       userAgent: clientInfo.userAgent,
+      browser: clientInfo.browser,
+      operatingSystem: clientInfo.operatingSystem,
+      device: clientInfo.device,
       endpoint: "/api/auth/login",
       httpMethod: "POST",
+      httpStatus: 401,
       userEmail: normalizedEmail,
       actionTaken: failCount >= 5 ? "BLOCKED" : "MONITORED",
       reason: `Failed login attempt (unregistered account or wrong credentials): attempt #${failCount}`,
@@ -346,10 +393,14 @@ const login = asyncHandler(async (req, res) => {
     });
   }
 
-  if (user.isBlocked) {
+  const blockCheck = await securityGatewayService.checkUserBlocked(user);
+  if (blockCheck.isBlocked) {
     return res.status(403).json({
       success: false,
-      message: "Your account has been blocked.",
+      code: "USER_TEMPORARILY_BLOCKED",
+      message: "Your account has been temporarily restricted due to suspicious activity.",
+      blockedUntil: blockCheck.blockedUntil,
+      remainingSeconds: blockCheck.remainingSeconds,
     });
   }
 
@@ -368,10 +419,15 @@ const login = asyncHandler(async (req, res) => {
     await securityGatewayService.logSecurityEvent({
       eventType: failCount >= 3 ? "BRUTE_FORCE_PATTERN" : "FAILED_LOGIN_ATTEMPT",
       severity: failCount >= 5 ? "CRITICAL" : (failCount >= 3 ? "HIGH" : "LOW"),
+      requestId: clientInfo.requestId,
       ipAddress: clientInfo.ipAddress,
       userAgent: clientInfo.userAgent,
+      browser: clientInfo.browser,
+      operatingSystem: clientInfo.operatingSystem,
+      device: clientInfo.device,
       endpoint: "/api/auth/login",
       httpMethod: "POST",
+      httpStatus: 401,
       userId: user._id,
       userEmail: normalizedEmail,
       actionTaken: failCount >= 5 ? "BLOCKED" : "MONITORED",
@@ -411,7 +467,7 @@ const login = asyncHandler(async (req, res) => {
   const clientInfo = parseClientInfo(req);
   const sessionDays = remember ? 30 : 1;
 
-  await createSession({
+  const session = await createSession({
     user: user._id,
     refreshToken,
     rememberMe: !!remember,
@@ -423,6 +479,45 @@ const login = asyncHandler(async (req, res) => {
     isCurrent: true,
     expiresAt: new Date(Date.now() + sessionDays * 24 * 60 * 60 * 1000),
   });
+
+  // Asynchronous login notification & security event logging
+  sendNewLoginNotification({
+    email: user.email,
+    fullName: user.fullName,
+    loginTime: new Date(),
+    ipAddress: clientInfo.ipAddress,
+    browser: clientInfo.browser,
+    operatingSystem: clientInfo.operatingSystem,
+    device: clientInfo.device,
+    authMethod: "Email & Password",
+    rememberMe: !!remember,
+    requestId: clientInfo.requestId,
+    sessionId: session?._id,
+  }).catch((err) => console.error("[Security] Async login email notification error:", err.message));
+
+  securityGatewayService.logSecurityEvent({
+    eventType: "SUCCESSFUL_LOGIN",
+    severity: "LOW",
+    requestId: clientInfo.requestId,
+    ipAddress: clientInfo.ipAddress,
+    userAgent: clientInfo.userAgent,
+    browser: clientInfo.browser,
+    operatingSystem: clientInfo.operatingSystem,
+    device: clientInfo.device,
+    endpoint: "/api/auth/login",
+    httpMethod: "POST",
+    httpStatus: 200,
+    userId: user._id,
+    userEmail: user.email,
+    actionTaken: "ALLOWED",
+    reason: "User authenticated successfully via email and password credentials.",
+    riskScore: 0,
+    gatewayDecision: "NORMAL",
+    metadata: { authMethod: "Email & Password", rememberMe: !!remember },
+  }).catch((e) => console.error("[Security] Async login event log error:", e.message));
+
+  // Set HTTP-Only Cookie
+  setAuthCookie(res, accessToken, !!remember);
 
   res.status(200).json({
     success: true,
@@ -484,17 +579,15 @@ const googleLogin = asyncHandler(async (req, res) => {
     }
   }
 
-  if (user.isBlocked) {
+  const blockCheck = await securityGatewayService.checkUserBlocked(user);
+  if (blockCheck.isBlocked) {
     return res.status(403).json({
       success: false,
-      message: "Your account has been blocked.",
+      code: "USER_TEMPORARILY_BLOCKED",
+      message: "Your account has been temporarily restricted due to suspicious activity.",
+      blockedUntil: blockCheck.blockedUntil,
+      remainingSeconds: blockCheck.remainingSeconds,
     });
-  }
-
-  if (user.email && user.email.toLowerCase() === "nirlonmacwan27@gmail.com") {
-    user.role = "admin";
-    user.isVerified = true;
-    await user.save();
   }
 
   const { accessToken, refreshToken } = generateTokens(user, remember);
@@ -507,7 +600,7 @@ const googleLogin = asyncHandler(async (req, res) => {
   const sessionDays = remember ? 30 : 1;
 
   // Perform ALL session/database writes BEFORE sending the response
-  await createSession({
+  const session = await createSession({
     user: user._id,
     refreshToken,
     rememberMe: !!remember,
@@ -519,6 +612,45 @@ const googleLogin = asyncHandler(async (req, res) => {
     isCurrent: true,
     expiresAt: new Date(Date.now() + sessionDays * 24 * 60 * 60 * 1000),
   });
+
+  // Asynchronous login notification & security event logging
+  sendNewLoginNotification({
+    email: user.email,
+    fullName: user.fullName,
+    loginTime: new Date(),
+    ipAddress: clientInfo.ipAddress,
+    browser: clientInfo.browser,
+    operatingSystem: clientInfo.operatingSystem,
+    device: clientInfo.device,
+    authMethod: "Google",
+    rememberMe: !!remember,
+    requestId: clientInfo.requestId,
+    sessionId: session?._id,
+  }).catch((err) => console.error("[Security] Async Google login email notification error:", err.message));
+
+  securityGatewayService.logSecurityEvent({
+    eventType: "SUCCESSFUL_LOGIN",
+    severity: "LOW",
+    requestId: clientInfo.requestId,
+    ipAddress: clientInfo.ipAddress,
+    userAgent: clientInfo.userAgent,
+    browser: clientInfo.browser,
+    operatingSystem: clientInfo.operatingSystem,
+    device: clientInfo.device,
+    endpoint: "/api/auth/google",
+    httpMethod: "POST",
+    httpStatus: 200,
+    userId: user._id,
+    userEmail: user.email,
+    actionTaken: "ALLOWED",
+    reason: "User authenticated successfully via Google OAuth.",
+    riskScore: 0,
+    gatewayDecision: "NORMAL",
+    metadata: { authMethod: "Google", rememberMe: !!remember },
+  }).catch((e) => console.error("[Security] Async login event log error:", e.message));
+
+  // Set HTTP-Only Cookie
+  setAuthCookie(res, accessToken, !!remember);
 
   res.status(200).json({
     success: true,
@@ -748,10 +880,16 @@ const logout = asyncHandler(async (req, res) => {
     await revokeCurrentSession(req.user._id);
   }
 
+  const isProduction =
+    process.env.NODE_ENV === "production" &&
+    !process.env.CLIENT_URL?.includes("localhost") &&
+    !process.env.FRONTEND_URL?.includes("localhost");
+
   res.clearCookie("token", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
+    path: "/",
   });
 
   res.status(200).json({

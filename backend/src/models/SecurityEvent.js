@@ -1,10 +1,15 @@
-﻿const mongoose = require("mongoose");
+const mongoose = require("mongoose");
 
 const securityEventSchema = new mongoose.Schema(
   {
     timestamp: {
       type: Date,
       default: Date.now,
+      index: true,
+    },
+    requestId: {
+      type: String,
+      default: "",
       index: true,
     },
     eventType: {
@@ -32,13 +37,30 @@ const securityEventSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    browser: {
+      type: String,
+      default: "",
+    },
+    operatingSystem: {
+      type: String,
+      default: "",
+    },
+    device: {
+      type: String,
+      default: "",
+    },
     endpoint: {
       type: String,
       required: true,
+      index: true,
     },
     httpMethod: {
       type: String,
       default: "POST",
+    },
+    httpStatus: {
+      type: Number,
+      default: 200,
     },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -54,8 +76,9 @@ const securityEventSchema = new mongoose.Schema(
     },
     actionTaken: {
       type: String,
-      enum: ["ALLOWED", "MONITORED", "RATE_LIMITED", "BLOCKED", "ALERTED"],
+      enum: ["ALLOWED", "MONITORED", "RATE_LIMITED", "CHALLENGED", "BLOCKED", "ALERTED"],
       default: "ALLOWED",
+      index: true,
     },
     reason: {
       type: String,
@@ -66,20 +89,44 @@ const securityEventSchema = new mongoose.Schema(
       default: 0,
       min: 0,
       max: 100,
+      index: true,
     },
     gatewayDecision: {
       type: String,
       enum: ["NORMAL", "SUSPICIOUS", "HIGH_RISK", "CRITICAL", "BLOCKED"],
       default: "NORMAL",
+      index: true,
     },
     metadata: {
       type: mongoose.Schema.Types.Mixed,
       default: {},
+    },
+    isSimulation: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    simulationId: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    testAccountId: {
+      type: String,
+      default: null,
+    },
+    clientType: {
+      type: String,
+      enum: ["REAL", "SIMULATION"],
+      default: "REAL",
+      index: true,
     },
   },
   {
     timestamps: true,
   }
 );
+
+securityEventSchema.index({ timestamp: -1, isSimulation: 1 });
 
 module.exports = mongoose.model("SecurityEvent", securityEventSchema);

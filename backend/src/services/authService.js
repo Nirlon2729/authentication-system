@@ -9,7 +9,7 @@ const updateGoogleUser = async (userId, data) => {
       lastLogin: new Date(),
     },
     {
-      new: true,
+      returnDocument: "after",
     }
   );
 };
@@ -36,7 +36,7 @@ const updateLastLogin = async (userId) => {
       lastLogin: new Date(),
     },
     {
-      new: true,
+      returnDocument: "after",
     }
   );
 };
@@ -48,7 +48,7 @@ const updateRefreshToken = async (userId, refreshToken) => {
       refreshToken,
     },
     {
-      new: true,
+      returnDocument: "after",
     }
   );
 };
@@ -63,7 +63,7 @@ const updateUserEmail = async (
       email,
     },
     {
-      new: true,
+      returnDocument: "after",
     }
   );
 };

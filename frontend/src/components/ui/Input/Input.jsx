@@ -8,11 +8,14 @@ const Input = ({
   value,
   onChange,
   name,
+  id,
   placeholder = "",
   error = "",
   disabled = false,
   required = false,
   icon = null,
+  autoComplete,
+  ...rest
 }) => {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -25,20 +28,27 @@ const Input = ({
 
   return (
     <div className="input-group">
-      {label && <label className="input-label">{label}</label>}
+      {label && (
+        <label htmlFor={id || name} className="input-label">
+          {label} {required && <span className="required-star">*</span>}
+        </label>
+      )}
 
       <div className="input-wrapper">
         {icon && <div className="input-prefix-icon">{icon}</div>}
 
         <input
-          className={`custom-input ${error ? "input-error" : ""} ${icon ? "has-prefix" : ""}`}
+          id={id || name}
+          className={`custom-input ${error ? "input-error" : ""} ${icon ? "has-prefix" : ""} ${type === "password" ? "has-toggle" : ""}`}
           type={inputType}
           name={name}
-          value={value}
+          value={value !== undefined && value !== null ? value : ""}
           onChange={onChange}
           placeholder={placeholder}
           disabled={disabled}
           required={required}
+          autoComplete={autoComplete}
+          {...rest}
         />
 
         {type === "password" && (
@@ -46,6 +56,9 @@ const Input = ({
             type="button"
             className="toggle-password"
             onClick={() => setShowPassword(!showPassword)}
+            disabled={disabled}
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            tabIndex={-1}
           >
             {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
           </button>

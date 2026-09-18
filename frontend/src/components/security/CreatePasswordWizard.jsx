@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import { KeyRound, ShieldCheck, Mail, CheckCircle2, ArrowRight } from "lucide-react";
+import { KeyRound, Mail, CheckCircle2, ArrowRight } from "lucide-react";
 
 import "./CreatePasswordWizard.css";
 

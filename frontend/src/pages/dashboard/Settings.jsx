@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../../layouts/DashboardLayout/DashboardLayout";
 import { useAuth } from "../../context/AuthContext";
@@ -12,8 +12,6 @@ import {
   ShieldAlert,
   User,
   Sliders,
-  Sparkles,
-  Lock,
   X,
   AlertTriangle,
 } from "lucide-react";

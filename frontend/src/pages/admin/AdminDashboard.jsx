@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../../layouts/DashboardLayout/DashboardLayout";
 import { useAuth } from "../../context/AuthContext";
 import EmailOTPModal from "../../components/profile/EmailOTPModal";
@@ -31,6 +32,7 @@ import { toast } from "react-toastify";
 import "../../styles/pages/admin.css";
 
 const AdminDashboard = () => {
+  const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState("users");
   const [users, setUsers] = useState([]);
@@ -141,10 +143,20 @@ const AdminDashboard = () => {
               Logged in as <strong>{currentUser?.email}</strong>. Manage registered accounts, create secondary Admins, and monitor real-time audit logs.
             </p>
           </div>
-          <Button variant="secondary" onClick={() => setActiveTab("create-admin")}>
-            <UserPlus size={18} />
-            <span>Create New Admin</span>
-          </Button>
+          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+            <Button
+              variant="primary"
+              onClick={() => navigate("/admin/security-gateway")}
+              style={{ background: "#2563eb", borderColor: "#1d4ed8" }}
+            >
+              <ShieldCheck size={18} />
+              <span>AI Security Gateway</span>
+            </Button>
+            <Button variant="secondary" onClick={() => setActiveTab("create-admin")}>
+              <UserPlus size={18} />
+              <span>Create New Admin</span>
+            </Button>
+          </div>
         </section>
 
         {/* Analytics Statistics Grid */}
@@ -340,7 +352,7 @@ const AdminDashboard = () => {
                             >
                               {usr.isBlocked ? <UserCheck size={16} /> : <UserX size={16} />}
                             </button>
-                            {usr.email !== "nirlonmacwan27@gmail.com" && (
+                            {usr._id !== currentUser?._id && (
                               <button
                                 title="Delete Account"
                                 className="action-btn delete-btn"

@@ -32,7 +32,11 @@ api.interceptors.response.use(
         error.config?.url?.includes("/auth/verify-otp") ||
         error.config?.url?.includes("/auth/forgot-password");
 
-      if (!isAuthRoute && localStorage.getItem("token")) {
+      const isSecurityTestRoute =
+        error.config?.url?.includes("/security/test-traffic") ||
+        error.config?.url?.includes("/security/admin/test");
+
+      if (!isAuthRoute && !isSecurityTestRoute && localStorage.getItem("token")) {
         localStorage.removeItem("token");
       }
     }

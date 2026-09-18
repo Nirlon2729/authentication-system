@@ -50,6 +50,10 @@
   padding-left: 2.35rem;
 }
 
+.custom-input.has-toggle {
+  padding-right: 2.6rem;
+}
+
 .custom-input:focus {
   outline: none;
   border-color: var(--border-color-focus);
@@ -77,6 +81,11 @@
   margin-top: 0.3rem;
 }
 
+.required-star {
+  color: var(--danger, #ef4444);
+  font-weight: 700;
+}
+
 .toggle-password {
   position: absolute;
   right: 0.75rem;
@@ -89,10 +98,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0.25rem;
+  padding: 0.35rem;
   border-radius: var(--radius-sm);
+  z-index: 2;
+  transition: var(--transition-fast);
 }
 
 .toggle-password:hover {
   color: var(--text-primary);
+}
+
+.toggle-password:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }

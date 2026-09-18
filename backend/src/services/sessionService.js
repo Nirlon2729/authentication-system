@@ -41,7 +41,7 @@ const updateLastActive = async (sessionId) => {
       lastActive: new Date(),
     },
     {
-      new: true,
+      returnDocument: "after",
     }
   );
 };
@@ -54,7 +54,7 @@ const revokeSession = async (sessionId) => {
       isCurrent: false,
     },
     {
-      new: true,
+      returnDocument: "after",
     }
   );
 };

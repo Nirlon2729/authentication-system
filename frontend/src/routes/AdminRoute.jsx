@@ -14,7 +14,8 @@ const AdminRoute = ({ children }) => {
     return <Navigate to="/" replace />;
   }
 
-  if (user.role !== "admin") {
+  const isAdmin = user.role === "admin" || user.role === "super_admin";
+  if (!isAdmin) {
     toast.error("Access Denied: Admin privileges required.");
     return <Navigate to="/dashboard" replace />;
   }

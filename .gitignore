@@ -1,11 +1,42 @@
-node_modules
-.env
-backend/.env
-frontend/.env
-smart-gateway/.env
-smart-gateway/*.joblib
-smart-gateway/__pycache__/
-smart-gateway/.pytest_cache/
-dist
-build
-.vscode
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment configurations and secrets
+**/.env
+**/.env.*
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
+!**/.env.example
+
+# Service account keys and certificates
+**/firebase-service-account*.json
+firebase-service-account*.json
+**/*.pem
+**/*.key
+**/*.cert
+**/*.crt
+**/*.p12
+**/*.pfx
+
+# File uploads & storage
+**/uploads/**
+uploads/
+
+# Build artifacts
+dist/
+build/
+.vite/
+*.joblib
+
+# Cache & logs
+**/__pycache__/
+**/.pytest_cache/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+.vscode/
+.idea/

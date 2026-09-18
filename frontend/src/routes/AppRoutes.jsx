@@ -15,6 +15,7 @@ import Security from "../pages/dashboard/Security";
 import VerifySignupOTP from "../pages/auth/VerifySignupOTP";
 import AdminRoute from "./AdminRoute";
 import AdminDashboard from "../pages/admin/AdminDashboard";
+import SecurityGateway from "../pages/admin/SecurityGateway";
 
 const AppRoutes = () => {
   return (
@@ -87,6 +88,15 @@ const AppRoutes = () => {
         element={
           <AdminRoute>
             <AdminDashboard />
+          </AdminRoute>
+        }
+      />
+
+      <Route
+        path="/admin/security-gateway"
+        element={
+          <AdminRoute>
+            <SecurityGateway />
           </AdminRoute>
         }
       />

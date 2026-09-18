@@ -25,7 +25,7 @@ class ReverseProxy:
         request: Request,
         path: str,
         anomaly_status: str = "CLEAN"
-    ) => FastAPIResponse:
+    ) -> FastAPIResponse:
         """
         Forwards incoming request to Node.js backend URL while preserving headers,
         JWT authorization tokens, cookies, content-type, origin, body, and query params.

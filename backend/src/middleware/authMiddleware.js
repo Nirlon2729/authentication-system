@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const securityGatewayService = require("../services/securityGatewayService");
 
 const authMiddleware = async (req, res, next) => {
   try {
@@ -65,10 +66,14 @@ const authMiddleware = async (req, res, next) => {
       });
     }
 
-    if (user.isBlocked) {
+    const blockCheck = await securityGatewayService.checkUserBlocked(user);
+    if (blockCheck.isBlocked) {
       return res.status(403).json({
         success: false,
-        message: "Your account has been blocked.",
+        code: "USER_TEMPORARILY_BLOCKED",
+        message: "Your account has been temporarily restricted due to suspicious activity.",
+        blockedUntil: blockCheck.blockedUntil,
+        remainingSeconds: blockCheck.remainingSeconds,
       });
     }
 

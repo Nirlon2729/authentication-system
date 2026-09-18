@@ -29,7 +29,7 @@ const Sidebar = ({ onCloseMobile, isMobile = false }) => {
     }
   };
 
-  const isAdmin = user?.role === "admin" || user?.email === "nirlonmacwan27@gmail.com";
+  const isAdmin = user?.role === "admin";
 
   return (
     <div className="sidebar-container">
@@ -87,17 +87,31 @@ const Sidebar = ({ onCloseMobile, isMobile = false }) => {
             </NavLink>
 
             {isAdmin && (
-              <NavLink
-                to="/admin"
-                className={({ isActive }) =>
-                  `sidebar-nav-item ${isActive ? "active" : ""}`
-                }
-                onClick={isMobile ? onCloseMobile : undefined}
-              >
-                <Users size={18} />
-                <span>User Directory</span>
-                <span className="nav-admin-badge">Admin</span>
-              </NavLink>
+              <>
+                <NavLink
+                  to="/admin/security-gateway"
+                  className={({ isActive }) =>
+                    `sidebar-nav-item ${isActive ? "active" : ""}`
+                  }
+                  onClick={isMobile ? onCloseMobile : undefined}
+                >
+                  <ShieldCheck size={18} />
+                  <span>AI Security Gateway</span>
+                  <span className="nav-admin-badge" style={{ background: "#3b82f6" }}>SOC</span>
+                </NavLink>
+
+                <NavLink
+                  to="/admin"
+                  className={({ isActive }) =>
+                    `sidebar-nav-item ${isActive ? "active" : ""}`
+                  }
+                  onClick={isMobile ? onCloseMobile : undefined}
+                >
+                  <Users size={18} />
+                  <span>User Directory</span>
+                  <span className="nav-admin-badge">Admin</span>
+                </NavLink>
+              </>
             )}
           </div>
         </div>
