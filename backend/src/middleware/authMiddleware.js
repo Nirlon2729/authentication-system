@@ -23,8 +23,8 @@ const authMiddleware = async (req, res, next) => {
     }
 
     // 2. Cookie fallback
-    if (!token && req.cookies?.token) {
-      token = req.cookies.token;
+    if (!token && (req.cookies?.token || req.signedCookies?.token)) {
+      token = req.cookies?.token || req.signedCookies?.token;
     }
 
     if (!token) {

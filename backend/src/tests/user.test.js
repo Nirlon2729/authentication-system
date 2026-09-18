@@ -69,6 +69,83 @@ async function runMiddlewareTests() {
   assert.strictEqual(json3.message, "Token expired. Please login again.");
   console.log("✅ Expired token test passed.");
 
+  // Mock User.findById for successful auth verification
+  const User = require("../models/User");
+  const originalFindById = User.findById;
+  const mockUser = {
+    _id: "60d0fe4f5311236168a109ca",
+    fullName: "Independent Auth Tester",
+    email: "authtest@example.com",
+    role: "user",
+    isBlocked: false,
+  };
+  User.findById = function () {
+    const p = Promise.resolve(mockUser);
+    p.select = () => p;
+    return p;
+  };
+
+  try {
+    const validToken = jwt.sign(
+      { id: mockUser._id.toString(), email: mockUser.email, role: mockUser.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    // 4. Independent Bearer-Token Path (Authorization header ONLY, cookies empty)
+    let nextCalled4 = false;
+    const req4 = {
+      headers: { authorization: `Bearer ${validToken}` },
+      cookies: {},
+      signedCookies: {},
+    };
+    const res4 = {
+      status: (s) => ({ json: () => {} }),
+    };
+    await authMiddleware(req4, res4, () => {
+      nextCalled4 = true;
+    });
+    assert.strictEqual(nextCalled4, true, "Bearer-token authentication should call next()");
+    assert.strictEqual(req4.user._id, mockUser._id);
+    console.log("✅ Independent Bearer-token authentication path passed.");
+
+    // 5. Independent HTTP-Only Cookie Path (cookies.token ONLY, headers empty)
+    let nextCalled5 = false;
+    const req5 = {
+      headers: {},
+      cookies: { token: validToken },
+      signedCookies: {},
+    };
+    const res5 = {
+      status: (s) => ({ json: () => {} }),
+    };
+    await authMiddleware(req5, res5, () => {
+      nextCalled5 = true;
+    });
+    assert.strictEqual(nextCalled5, true, "Cookie authentication should call next()");
+    assert.strictEqual(req5.user._id, mockUser._id);
+    console.log("✅ Independent HTTP-only cookie authentication path passed.");
+
+    // 6. Independent Signed Cookie Path (signedCookies.token ONLY, headers empty)
+    let nextCalled6 = false;
+    const req6 = {
+      headers: {},
+      cookies: {},
+      signedCookies: { token: validToken },
+    };
+    const res6 = {
+      status: (s) => ({ json: () => {} }),
+    };
+    await authMiddleware(req6, res6, () => {
+      nextCalled6 = true;
+    });
+    assert.strictEqual(nextCalled6, true, "Signed cookie authentication should call next()");
+    assert.strictEqual(req6.user._id, mockUser._id);
+    console.log("✅ Independent signed cookie authentication path passed.");
+  } finally {
+    User.findById = originalFindById;
+  }
+
   console.log("\n🎉 ALL MIDDLEWARE TESTS PASSED!");
 }
 

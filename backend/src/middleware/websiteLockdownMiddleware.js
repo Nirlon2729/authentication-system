@@ -109,8 +109,8 @@ const websiteLockdownMiddleware = async (req, res, next) => {
     let token = null;
     if (req.headers.authorization?.startsWith("Bearer ")) {
       token = req.headers.authorization.split(" ")[1];
-    } else if (req.cookies?.refreshToken) {
-      token = req.cookies.refreshToken;
+    } else if (req.cookies?.refreshToken || req.signedCookies?.refreshToken) {
+      token = req.cookies?.refreshToken || req.signedCookies?.refreshToken;
     }
 
     if (token && process.env.JWT_SECRET) {
@@ -131,8 +131,8 @@ const websiteLockdownMiddleware = async (req, res, next) => {
   let token = null;
   if (req.headers.authorization?.startsWith("Bearer ")) {
     token = req.headers.authorization.split(" ")[1];
-  } else if (req.cookies?.token) {
-    token = req.cookies.token;
+  } else if (req.cookies?.token || req.signedCookies?.token) {
+    token = req.cookies?.token || req.signedCookies?.token;
   }
 
   if (token && process.env.JWT_SECRET) {

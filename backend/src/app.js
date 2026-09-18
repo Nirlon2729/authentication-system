@@ -26,13 +26,26 @@ app.use(
   })
 );
 
-// Dynamic CORS configuration supporting local dev (5174, 5173, 3000) and production
+// Dynamic CORS configuration: strictly allows the configured frontend origin and dev ports
 const getAllowedOrigins = () => {
-  const envOrigins = [
+  const rawEnvOrigins = [
     process.env.CLIENT_URL,
     process.env.FRONTEND_URL,
     process.env.CORS_ORIGIN,
-  ].filter(Boolean);
+  ]
+    .filter(Boolean)
+    .flatMap((val) => val.split(",").map((s) => s.trim()).filter(Boolean));
+
+  // Normalize each environment origin to ensure both protocol variants and stripped trailing slashes match
+  const normalizedEnvOrigins = [];
+  for (const item of rawEnvOrigins) {
+    const stripped = item.replace(/\/+$/, "");
+    normalizedEnvOrigins.push(stripped);
+    if (!stripped.startsWith("http://") && !stripped.startsWith("https://")) {
+      normalizedEnvOrigins.push(`https://${stripped}`);
+      normalizedEnvOrigins.push(`http://${stripped}`);
+    }
+  }
 
   const defaultLocalOrigins = [
     "http://localhost:5174",
@@ -45,7 +58,7 @@ const getAllowedOrigins = () => {
     "http://127.0.0.1:3000",
   ];
 
-  return [...new Set([...envOrigins, ...defaultLocalOrigins])];
+  return [...new Set([...normalizedEnvOrigins, ...defaultLocalOrigins])];
 };
 
 const corsOptions = {
@@ -54,17 +67,18 @@ const corsOptions = {
     if (!origin) return callback(null, true);
 
     const allowed = getAllowedOrigins();
+    const normalizedOrigin = origin.replace(/\/+$/, "");
     const isLocalhost =
-      /^http:\/\/localhost:\d+$/.test(origin) ||
-      /^http:\/\/127\.0\.0\.1:\d+$/.test(origin);
+      /^http:\/\/localhost(:\d+)?$/.test(origin) ||
+      /^http:\/\/127\.0\.0\.1(:\d+)?$/.test(origin);
 
-    if (
-      allowed.includes(origin) ||
-      origin.endsWith(".vercel.app") ||
-      origin.endsWith(".onrender.com") ||
-      isLocalhost ||
-      process.env.NODE_ENV !== "production"
-    ) {
+    // Allow explicitly configured frontend origins
+    if (allowed.includes(normalizedOrigin)) {
+      return callback(null, true);
+    }
+
+    // Allow localhost during local development
+    if (process.env.NODE_ENV !== "production" && isLocalhost) {
       return callback(null, true);
     }
 

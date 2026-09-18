@@ -55,8 +55,8 @@ const securityGatewayMiddleware = async (req, res, next) => {
   let token = null;
   if (req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
     token = req.headers.authorization.split(" ")[1];
-  } else if (req.cookies?.token) {
-    token = req.cookies.token;
+  } else if (req.cookies?.token || req.signedCookies?.token) {
+    token = req.cookies?.token || req.signedCookies?.token;
   }
 
   if (token && process.env.JWT_SECRET && User) {

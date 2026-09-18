@@ -176,6 +176,170 @@ async function runTests() {
     );
     console.log("✅ POST /api/auth/google handles request and returns CORS headers.\n");
 
+    // 5. Configured CLIENT_URL is allowed with credentials
+    console.log("Test 5: Preflight OPTIONS from configured CLIENT_URL (https://auth-security-frontend.onrender.com)");
+    const savedClientUrl = process.env.CLIENT_URL;
+    process.env.CLIENT_URL = "auth-security-frontend.onrender.com"; // Test bare hostname normalization
+    const preflightConfigured = await makeRequest({
+      hostname: "127.0.0.1",
+      port,
+      path: "/api/auth/login",
+      method: "OPTIONS",
+      headers: {
+        Origin: "https://auth-security-frontend.onrender.com",
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "Content-Type, Authorization",
+      },
+    });
+
+    assert.strictEqual(
+      preflightConfigured.statusCode,
+      204,
+      `Expected status 204 on preflight from configured origin, got ${preflightConfigured.statusCode}`
+    );
+    assert.strictEqual(
+      preflightConfigured.headers["access-control-allow-origin"],
+      "https://auth-security-frontend.onrender.com",
+      "Configured CLIENT_URL must receive Access-Control-Allow-Origin"
+    );
+    assert.strictEqual(
+      preflightConfigured.headers["access-control-allow-credentials"],
+      "true",
+      "Configured CLIENT_URL must receive Access-Control-Allow-Credentials"
+    );
+    console.log("✅ Configured CLIENT_URL successfully allowed with credentials.\n");
+
+    // 6. Arbitrary unauthorized *.onrender.com origin is strictly rejected
+    console.log("Test 6: Reject arbitrary unauthorized onrender origin (https://arbitrary-attacker.onrender.com)");
+    const preflightAttackerOnrender = await makeRequest({
+      hostname: "127.0.0.1",
+      port,
+      path: "/api/auth/login",
+      method: "OPTIONS",
+      headers: {
+        Origin: "https://arbitrary-attacker.onrender.com",
+        "Access-Control-Request-Method": "POST",
+      },
+    });
+
+    assert.strictEqual(
+      preflightAttackerOnrender.headers["access-control-allow-origin"],
+      undefined,
+      "Unauthorized arbitrary onrender origin must NOT receive Access-Control-Allow-Origin"
+    );
+    console.log("✅ Arbitrary onrender origin correctly rejected by CORS.\n");
+
+    // 7. Arbitrary third-party domain is strictly rejected
+    console.log("Test 7: Reject arbitrary third-party origin (https://evil-attacker.com)");
+    const preflightEvil = await makeRequest({
+      hostname: "127.0.0.1",
+      port,
+      path: "/api/auth/login",
+      method: "OPTIONS",
+      headers: {
+        Origin: "https://evil-attacker.com",
+        "Access-Control-Request-Method": "POST",
+      },
+    });
+
+    assert.strictEqual(
+      preflightEvil.headers["access-control-allow-origin"],
+      undefined,
+      "Third-party unauthorized origin must NOT receive Access-Control-Allow-Origin"
+    );
+    console.log("✅ Arbitrary third-party origin correctly rejected by CORS.\n");
+    process.env.CLIENT_URL = savedClientUrl;
+
+    // 8. Independent Bearer-token authentication path (Authorization header ONLY)
+    console.log("Test 8: Independent Bearer-token authentication on /api/profile (no cookies)");
+    const jwt = require("jsonwebtoken");
+    const User = require("../models/User");
+    const originalFindById = User.findById;
+    const mockUser = {
+      _id: new mongoose.Types.ObjectId("60d0fe4f5311236168a109ca"),
+      fullName: "E2E Auth Tester",
+      email: "e2etester@example.com",
+      role: "user",
+      isBlocked: false,
+      toObject: () => ({
+        _id: "60d0fe4f5311236168a109ca",
+        fullName: "E2E Auth Tester",
+        email: "e2etester@example.com",
+        role: "user",
+      }),
+    };
+    User.findById = function () {
+      const p = Promise.resolve(mockUser);
+      p.select = () => p;
+      return p;
+    };
+
+    try {
+      const validToken = jwt.sign(
+        { id: mockUser._id.toString(), email: mockUser.email, role: mockUser.role },
+        process.env.JWT_SECRET,
+        { expiresIn: "1h" }
+      );
+
+      const bearerRes = await makeRequest({
+        hostname: "127.0.0.1",
+        port,
+        path: "/api/profile",
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${validToken}`,
+        },
+      });
+
+      assert.strictEqual(
+        bearerRes.statusCode,
+        200,
+        `Expected status 200 with Bearer token, got ${bearerRes.statusCode}`
+      );
+      assert.strictEqual(bearerRes.body.success, true);
+      console.log("✅ Independent Bearer-token authentication path successfully returns 200.\n");
+
+      // 9. Independent HTTP-Only Cookie authentication path (Cookie ONLY, no Authorization header)
+      console.log("Test 9: Independent HTTP-only cookie authentication on /api/profile (no Authorization header)");
+      const cookieRes = await makeRequest({
+        hostname: "127.0.0.1",
+        port,
+        path: "/api/profile",
+        method: "GET",
+        headers: {
+          Cookie: `token=${validToken}`,
+        },
+      });
+
+      assert.strictEqual(
+        cookieRes.statusCode,
+        200,
+        `Expected status 200 with Cookie token, got ${cookieRes.statusCode}`
+      );
+      assert.strictEqual(cookieRes.body.success, true);
+      console.log("✅ Independent HTTP-only cookie authentication path successfully returns 200.\n");
+
+      // 10. Missing both Bearer token and Cookie
+      console.log("Test 10: Reject request on /api/profile when neither Bearer token nor Cookie is provided");
+      const unauthRes = await makeRequest({
+        hostname: "127.0.0.1",
+        port,
+        path: "/api/profile",
+        method: "GET",
+        headers: {},
+      });
+
+      assert.strictEqual(
+        unauthRes.statusCode,
+        401,
+        `Expected status 401 with missing auth credentials, got ${unauthRes.statusCode}`
+      );
+      assert.strictEqual(unauthRes.body.success, false);
+      console.log("✅ Missing credentials correctly rejected with 401.\n");
+    } finally {
+      User.findById = originalFindById;
+    }
+
     console.log("🎉 ALL CORS & AUTH ENDPOINT TESTS PASSED SUCCESSFULLY!");
   } finally {
     server.close();
