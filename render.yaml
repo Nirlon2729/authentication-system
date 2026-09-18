@@ -23,7 +23,7 @@ services:
         generateValue: true
       - key: CLIENT_URL
         fromService:
-          type: static
+          type: web
           name: auth-security-frontend
           property: host
       - key: SECURITY_USER_BLOCK_MINUTES
@@ -54,8 +54,9 @@ services:
         sync: false
 
   # Frontend React SPA Static Site
-  - type: static
+  - type: web
     name: auth-security-frontend
+    runtime: static
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: dist
