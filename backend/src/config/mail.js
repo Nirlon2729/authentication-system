@@ -33,14 +33,21 @@ const logEmailDiagnostics = () => {
 
 if (process.env.NODE_ENV !== "test") {
   logEmailDiagnostics();
-  transporter.verify((error) => {
-    if (error) {
-      console.warn("⚠️ SMTP Verification warning (outbound SMTP ports may be blocked on free tier hosts like Render):", error.message);
-      console.warn("💡 Tip: Set BREVO_API_KEY or RESEND_API_KEY in environment variables to deliver emails via HTTPS (port 443).");
-    } else {
-      console.log("✅ SMTP Connected Successfully");
-    }
-  });
+  if (process.env.BREVO_API_KEY) {
+    console.log("🚀 [EmailConfig] Brevo HTTPS API configured as primary email provider.");
+  } else if (process.env.RESEND_API_KEY) {
+    console.log("🚀 [EmailConfig] Resend HTTPS API configured as primary email provider.");
+  } else {
+    // Only verify SMTP if no HTTPS email provider is active
+    transporter.verify((error) => {
+      if (error) {
+        console.warn("⚠️ SMTP Verification warning (outbound SMTP ports may be blocked on free tier hosts like Render):", error.message);
+        console.warn("💡 Tip: Set BREVO_API_KEY or RESEND_API_KEY in environment variables to deliver emails via HTTPS (port 443).");
+      } else {
+        console.log("✅ SMTP Connected Successfully");
+      }
+    });
+  }
 }
 
 module.exports = transporter;

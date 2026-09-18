@@ -42,85 +42,145 @@ const sendEmail = async ({ to, subject, html }) => {
   }
 
   const deliver = async () => {
-    // 1. If Brevo API key is available, send email via Brevo HTTPS API (port 443, not blocked on Render Free tier)
+    // 1. Primary Production Delivery: Brevo HTTPS API (port 443, not blocked on Render Free tier)
     if (process.env.BREVO_API_KEY) {
+      console.log("📨 Dispatching email via Brevo HTTPS API...");
+      const brevoApiKey = process.env.BREVO_API_KEY.trim();
+      const senderEmail = (
+        process.env.BREVO_SENDER_EMAIL ||
+        process.env.EMAIL_FROM ||
+        process.env.EMAIL_USER ||
+        "no-reply@security.com"
+      ).trim();
+      const senderName = (
+        process.env.BREVO_SENDER_NAME ||
+        process.env.EMAIL_FROM_NAME ||
+        "Authentication System"
+      ).trim();
+      const recipientEmail = (to || "").trim().toLowerCase();
+
+      // Clean plain-text content extracted from HTML
+      const textContent = html
+        ? html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
+        : undefined;
+
+      const payload = {
+        sender: {
+          name: senderName,
+          email: senderEmail,
+        },
+        to: [{ email: recipientEmail }],
+        subject: subject,
+        htmlContent: html,
+      };
+      if (textContent) {
+        payload.textContent = textContent;
+      }
+
       try {
-        console.log("📨 Sending email via Brevo HTTPS API...");
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
         const response = await fetch("https://api.brevo.com/v3/smtp/email", {
           method: "POST",
           headers: {
             accept: "application/json",
-            "api-key": process.env.BREVO_API_KEY,
+            "api-key": brevoApiKey,
             "content-type": "application/json",
           },
-          body: JSON.stringify({
-            sender: {
-              name: process.env.EMAIL_FROM_NAME || "Security Center",
-              email: process.env.EMAIL_USER || "no-reply@security.com",
-            },
-            to: [{ email: to }],
-            subject: subject,
-            htmlContent: html,
-          }),
+          body: JSON.stringify(payload),
+          signal: controller.signal,
         });
 
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.message || `Brevo API returned status code ${response.status}`);
+        clearTimeout(timeoutId);
+
+        let data = {};
+        try {
+          data = await response.json();
+        } catch {
+          data = { raw: "Non-JSON response from Brevo" };
         }
 
-        console.log("✅ Email sent successfully via Brevo HTTPS API:", data.messageId || "OK");
+        if (!response.ok) {
+          const detail = data.message || data.code || `HTTP status ${response.status}`;
+          throw new Error(`Brevo API error (${response.status}): ${detail}`);
+        }
+
+        console.log("✅ Email dispatched successfully via Brevo HTTPS API:", data.messageId || "OK");
         return data;
       } catch (error) {
-        console.error("❌ Brevo HTTPS API email delivery failed:", error.message);
-        if (!process.env.RESEND_API_KEY && !process.env.EMAIL_PASS) {
-          throw error;
-        }
+        const errorMsg =
+          error.name === "AbortError"
+            ? "Brevo HTTPS API request timed out after 10s"
+            : error.message;
+        console.error("❌ Brevo HTTPS API email delivery failed:", errorMsg);
+        // STRICT REQUIREMENT: DO NOT FALL BACK TO SMTP WHEN BREVO_API_KEY IS CONFIGURED
+        throw new Error(`Brevo email delivery failed: ${errorMsg}`);
       }
     }
 
-    // 2. If Resend API key is available, send email via Resend HTTPS API (port 443, not blocked on Render Free tier)
+    // 2. Resend HTTPS API (port 443) - only if BREVO_API_KEY is not configured
     if (process.env.RESEND_API_KEY) {
+      console.log("📨 Dispatching email via Resend HTTPS API...");
+      const resendApiKey = process.env.RESEND_API_KEY.trim();
+      const fromAddress = (
+        process.env.EMAIL_FROM ||
+        (process.env.EMAIL_USER && process.env.EMAIL_USER.includes("@")
+          ? `Authentication System <${process.env.EMAIL_USER.trim()}>`
+          : "Authentication System <onboarding@resend.dev>")
+      ).trim();
+      const recipientEmail = (to || "").trim().toLowerCase();
+
       try {
-        console.log("📨 Sending email via Resend HTTPS API...");
-        const fromAddress =
-          process.env.EMAIL_FROM ||
-          (process.env.EMAIL_USER && process.env.EMAIL_USER.includes("@")
-            ? `Security Center <${process.env.EMAIL_USER}>`
-            : "Security Center <onboarding@resend.dev>");
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
 
         const response = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+            Authorization: `Bearer ${resendApiKey}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
             from: fromAddress,
-            to: [to],
+            to: [recipientEmail],
             subject: subject,
             html: html,
           }),
+          signal: controller.signal,
         });
 
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.message || `Resend API returned status code ${response.status}`);
+        clearTimeout(timeoutId);
+
+        let data = {};
+        try {
+          data = await response.json();
+        } catch {
+          data = { raw: "Non-JSON response from Resend" };
         }
 
-        console.log("✅ Email sent successfully via Resend HTTPS API:", data.id || "OK");
+        if (!response.ok) {
+          const detail = data.message || data.name || `HTTP status ${response.status}`;
+          throw new Error(`Resend API error (${response.status}): ${detail}`);
+        }
+
+        console.log("✅ Email dispatched successfully via Resend HTTPS API:", data.id || "OK");
         return data;
       } catch (error) {
-        console.error("❌ Resend HTTPS API email delivery failed:", error.message);
-        if (!process.env.EMAIL_PASS) {
-          throw error;
-        }
+        const errorMsg =
+          error.name === "AbortError"
+            ? "Resend HTTPS API request timed out after 10s"
+            : error.message;
+        console.error("❌ Resend HTTPS API email delivery failed:", errorMsg);
+        // STRICT REQUIREMENT: DO NOT FALL BACK TO SMTP WHEN RESEND_API_KEY IS CONFIGURED
+        throw new Error(`Resend email delivery failed: ${errorMsg}`);
       }
     }
 
-    // 3. Fallback to Nodemailer SMTP
+    // 3. Fallback to Nodemailer SMTP ONLY if NEITHER Brevo NOR Resend is configured
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
       try {
+        console.log("📨 Dispatching email via SMTP...");
         const info = await transporter.sendMail({
           from: `"Authentication System" <${process.env.EMAIL_USER}>`,
           to,
@@ -132,7 +192,7 @@ const sendEmail = async ({ to, subject, html }) => {
         return info;
       } catch (error) {
         console.error("❌ SMTP email delivery failed:", error.message);
-        throw error;
+        throw new Error(`SMTP email delivery failed: ${error.message}`);
       }
     }
 
