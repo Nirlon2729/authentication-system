@@ -209,6 +209,38 @@ async function runTests() {
     );
     console.log("✅ Configured CLIENT_URL successfully allowed with credentials.\n");
 
+    // 5b. Bare Render slug normalization (e.g. CLIENT_URL = "auth-security-frontend-xszl")
+    console.log("Test 5b: Preflight OPTIONS when CLIENT_URL is bare Render internal slug (auth-security-frontend-xszl)");
+    process.env.CLIENT_URL = "auth-security-frontend-xszl";
+    const preflightSlug = await makeRequest({
+      hostname: "127.0.0.1",
+      port,
+      path: "/api/auth/login",
+      method: "OPTIONS",
+      headers: {
+        Origin: "https://auth-security-frontend-xszl.onrender.com",
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "Content-Type, Authorization",
+      },
+    });
+
+    assert.strictEqual(
+      preflightSlug.statusCode,
+      204,
+      `Expected status 204 on preflight from bare slug origin, got ${preflightSlug.statusCode}`
+    );
+    assert.strictEqual(
+      preflightSlug.headers["access-control-allow-origin"],
+      "https://auth-security-frontend-xszl.onrender.com",
+      "Bare slug in CLIENT_URL must normalize to .onrender.com origin"
+    );
+    assert.strictEqual(
+      preflightSlug.headers["access-control-allow-credentials"],
+      "true",
+      "Bare slug origin must receive Access-Control-Allow-Credentials"
+    );
+    console.log("✅ Bare Render slug in CLIENT_URL successfully normalized to .onrender.com with credentials.\n");
+
     // 6. Arbitrary unauthorized *.onrender.com origin is strictly rejected
     console.log("Test 6: Reject arbitrary unauthorized onrender origin (https://arbitrary-attacker.onrender.com)");
     const preflightAttackerOnrender = await makeRequest({

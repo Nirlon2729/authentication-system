@@ -41,6 +41,21 @@ const getAllowedOrigins = () => {
   for (const item of rawEnvOrigins) {
     const stripped = item.replace(/\/+$/, "");
     normalizedEnvOrigins.push(stripped);
+
+    const isLocal =
+      /^localhost(:\d+)?$/i.test(stripped) ||
+      /^127\.0\.0\.1(:\d+)?$/.test(stripped) ||
+      /^http:\/\/localhost(:\d+)?$/i.test(stripped) ||
+      /^http:\/\/127\.0\.0\.1(:\d+)?$/.test(stripped);
+
+    if (!isLocal && !stripped.includes(".")) {
+      // It's a bare Render internal slug, e.g. auth-security-frontend-yyyy
+      const onrenderDomain = `${stripped}.onrender.com`;
+      normalizedEnvOrigins.push(onrenderDomain);
+      normalizedEnvOrigins.push(`https://${onrenderDomain}`);
+      normalizedEnvOrigins.push(`http://${onrenderDomain}`);
+    }
+
     if (!stripped.startsWith("http://") && !stripped.startsWith("https://")) {
       normalizedEnvOrigins.push(`https://${stripped}`);
       normalizedEnvOrigins.push(`http://${stripped}`);

@@ -5,13 +5,37 @@ const getBaseURL = () => {
   if (!envUrl) return "http://localhost:8000/api";
 
   let url = envUrl.trim().replace(/\/+$/, "");
-  if (!url.startsWith("http://") && !url.startsWith("https://")) {
-    url = `https://${url}`;
+
+  // Extract protocol if present
+  const hasHttp = url.startsWith("http://");
+  const hasHttps = url.startsWith("https://");
+  let protocol = hasHttp ? "http://" : hasHttps ? "https://" : "";
+  let withoutProtocol = protocol ? url.slice(protocol.length) : url;
+
+  // Split host and path
+  const slashIndex = withoutProtocol.indexOf("/");
+  let host = slashIndex !== -1 ? withoutProtocol.slice(0, slashIndex) : withoutProtocol;
+  let path = slashIndex !== -1 ? withoutProtocol.slice(slashIndex) : "";
+
+  // Check if host is a local address or a bare Render internal slug (no dots)
+  const isLocal = /^localhost(:\d+)?$/i.test(host) || /^127\.0\.0\.1(:\d+)?$/.test(host);
+  if (!isLocal && !host.includes(".")) {
+    // Render fromService host returns a private slug like 'auth-security-backend-xszl'
+    // The public FQDN must be suffixed with .onrender.com
+    host = `${host}.onrender.com`;
   }
-  if (!url.endsWith("/api")) {
-    url = `${url}/api`;
+
+  // Ensure default protocol
+  if (!protocol) {
+    protocol = isLocal ? "http://" : "https://";
   }
-  return url;
+
+  let full = `${protocol}${host}${path}`;
+  const cleanFull = full.replace(/\/+$/, "");
+  if (!cleanFull.endsWith("/api")) {
+    return `${cleanFull}/api`;
+  }
+  return cleanFull;
 };
 
 const api = axios.create({
