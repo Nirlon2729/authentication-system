@@ -79,21 +79,6 @@ const LiveSecurityFeed = ({ liveEvents = [], isPaused, onTogglePause }) => {
             return (
               <div key={idx} className={`feed-log-line ${decisionClass}`}>
                 <span className="feed-time">[{timeStr}]</span>
-                <span
-                  style={{
-                    fontSize: "0.68rem",
-                    padding: "0.15rem 0.4rem",
-                    borderRadius: "3px",
-                    fontWeight: 800,
-                    background: ev.isSimulation
-                      ? "rgba(168, 85, 247, 0.25)"
-                      : "rgba(59, 130, 246, 0.2)",
-                    color: ev.isSimulation ? "#c084fc" : "#60a5fa",
-                    marginRight: "0.35rem",
-                  }}
-                >
-                  {ev.isSimulation ? "SIMULATION" : "REAL"}
-                </span>
                 <span className={`feed-badge ${decisionClass}`}>
                   {decisionClass}
                 </span>

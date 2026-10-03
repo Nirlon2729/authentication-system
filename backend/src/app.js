@@ -110,15 +110,11 @@ const corsOptions = {
     "X-Requested-With",
     "Accept",
     "Origin",
-    "X-Simulation-Id",
-    "X-Simulation-Token",
   ],
   exposedHeaders: [
     "X-Request-ID",
     "X-Security-Gateway-Status",
     "X-Security-Risk-Score",
-    "X-Security-Simulation",
-    "X-Security-Simulation-ID",
     "Retry-After",
     "Content-Disposition",
   ],
@@ -153,6 +149,10 @@ app.use(securityGatewayMiddleware);
 /* =========================================
    Health Check
 ========================================= */
+app.get("/health", (req, res) => {
+  res.redirect("/api/health");
+});
+
 app.get("/", (req, res) => {
   res.status(200).json({
     success: true,

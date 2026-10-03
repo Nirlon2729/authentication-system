@@ -29,6 +29,7 @@ import Button from "../../components/ui/Button/Button";
 import Input from "../../components/ui/Input/Input";
 import PasswordInput from "../../components/ui/PasswordInput/PasswordInput";
 import { toast } from "react-toastify";
+import { calculateUserActions } from "../../utils/helpers";
 import "../../styles/pages/admin.css";
 
 const AdminDashboard = () => {
@@ -291,80 +292,105 @@ const AdminDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {users.map((usr) => (
-                      <tr key={usr._id} className={usr.isBlocked ? "row-blocked" : ""}>
-                        <td>
-                          <div className="table-user-cell">
-                            <img
-                              src={
-                                usr.profilePicture ||
-                                `https://ui-avatars.com/api/?name=${encodeURIComponent(usr.fullName || "User")}`
-                              }
-                              alt={usr.fullName}
-                              className="table-avatar"
-                            />
-                            <div>
-                              <strong className="user-cell-name">{usr.fullName}</strong>
-                              <span className="user-cell-email">{usr.email}</span>
+                    {users.map((usr) => {
+                      const actions = calculateUserActions(currentUser, usr);
+                      return (
+                        <tr key={usr._id} className={usr.isBlocked ? "row-blocked" : ""}>
+                          <td>
+                            <div className="table-user-cell">
+                              <img
+                                src={
+                                  usr.profilePicture ||
+                                  `https://ui-avatars.com/api/?name=${encodeURIComponent(usr.fullName || "User")}`
+                                }
+                                alt={usr.fullName}
+                                className="table-avatar"
+                              />
+                              <div>
+                                <strong className="user-cell-name">{usr.fullName}</strong>
+                                <span className="user-cell-email">{usr.email}</span>
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td>
-                          <span className={`role-pill role-${usr.role}`}>
-                            {usr.role === "admin" ? "🛡️ Admin" : "👤 User"}
-                          </span>
-                        </td>
-                        <td>
-                          <span className="provider-tag">{usr.provider || "local"}</span>
-                        </td>
-                        <td>
-                          <span className={`verify-dot ${usr.isVerified ? "verified" : "unverified"}`}>
-                            {usr.isVerified ? "Verified ✅" : "Unverified ⚠️"}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={`status-pill ${usr.isBlocked ? "blocked" : "active"}`}>
-                            {usr.isBlocked ? "Blocked 🚫" : "Active 🟢"}
-                          </span>
-                        </td>
-                        <td className="date-cell">
-                          {usr.createdAt
-                            ? new Date(usr.createdAt).toLocaleDateString("en-IN", {
-                                day: "2-digit",
-                                month: "short",
-                                year: "numeric",
-                              })
-                            : "-"}
-                        </td>
-                        <td>
-                          <div className="action-buttons-cell">
-                            <button
-                              title={usr.role === "admin" ? "Demote to User" : "Promote to Admin"}
-                              className="action-btn role-btn"
-                              onClick={() => handleToggleRole(usr._id, usr.role)}
-                            >
-                              <ShieldCheck size={16} />
-                            </button>
-                            <button
-                              title={usr.isBlocked ? "Unblock Account" : "Block Account"}
-                              className="action-btn block-btn"
-                              onClick={() => handleToggleBlock(usr._id)}
-                            >
-                              {usr.isBlocked ? <UserCheck size={16} /> : <UserX size={16} />}
-                            </button>
-                            {usr._id !== currentUser?._id && (
-                              <button
-                                title="Delete Account"
-                                className="action-btn delete-btn"
-                                onClick={() => handleDeleteUser(usr._id, usr.email)}
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td>
+                            <span className={`role-pill ${actions.roleBadgeClass}`}>
+                              {actions.roleDisplay}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="provider-tag">{usr.provider || "local"}</span>
+                          </td>
+                          <td>
+                            <span className={`verify-dot ${usr.isVerified ? "verified" : "unverified"}`}>
+                              {usr.isVerified ? "Verified ✅" : "Unverified ⚠️"}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`status-pill ${usr.isBlocked ? "blocked" : "active"}`}>
+                              {usr.isBlocked ? "Blocked 🚫" : "Active 🟢"}
+                            </span>
+                          </td>
+                          <td className="date-cell">
+                            {usr.createdAt
+                              ? new Date(usr.createdAt).toLocaleDateString("en-IN", {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                })
+                              : "-"}
+                          </td>
+                          <td>
+                            <div className="action-buttons-cell">
+                              {actions.isProtected ? (
+                                <span
+                                  style={{
+                                    fontSize: "0.74rem",
+                                    fontWeight: 700,
+                                    color: "#c084fc",
+                                    background: "rgba(168, 85, 247, 0.15)",
+                                    padding: "0.25rem 0.55rem",
+                                    borderRadius: "var(--radius-sm)",
+                                    border: "1px solid rgba(168, 85, 247, 0.3)",
+                                  }}
+                                >
+                                  Protected Super Admin
+                                </span>
+                              ) : (
+                                <>
+                                  {(actions.canDemote || actions.canPromote) && (
+                                    <button
+                                      title={actions.roleButtonTitle}
+                                      className="action-btn role-btn"
+                                      onClick={() => handleToggleRole(usr._id, usr.role)}
+                                    >
+                                      <ShieldCheck size={16} />
+                                    </button>
+                                  )}
+                                  {actions.canBlock && (
+                                    <button
+                                      title={actions.blockButtonTitle}
+                                      className="action-btn block-btn"
+                                      onClick={() => handleToggleBlock(usr._id)}
+                                    >
+                                      {usr.isBlocked ? <UserCheck size={16} /> : <UserX size={16} />}
+                                    </button>
+                                  )}
+                                  {actions.canDelete && (
+                                    <button
+                                      title={actions.deleteButtonTitle}
+                                      className="action-btn delete-btn"
+                                      onClick={() => handleDeleteUser(usr._id, usr.email)}
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

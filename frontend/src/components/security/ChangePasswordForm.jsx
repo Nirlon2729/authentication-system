@@ -264,7 +264,10 @@ const ChangePasswordForm = () => {
             Enter the 6-digit verification code sent to <strong>{user?.email}</strong>.
           </p>
 
-          <OTPInput value={otp} onChange={(e) => setOtp(e.target.value)} />
+          <OTPInput
+            value={otp}
+            onChange={(val) => setOtp(typeof val === "string" ? val : (val?.target?.value ?? ""))}
+          />
 
           <Button loading={loading} onClick={handleVerifyOTP} fullWidth>
             <span>Verify & Continue</span>

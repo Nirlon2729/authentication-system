@@ -74,7 +74,7 @@ const BlockedClients = ({ blockedClients = [], onRefresh }) => {
           <table className="admin-table">
             <thead>
               <tr>
-                <th>Type</th>
+                <th>Status</th>
                 <th>Client Identifier</th>
                 <th>IP Address</th>
                 <th>Trigger Reason</th>
@@ -85,9 +85,6 @@ const BlockedClients = ({ blockedClients = [], onRefresh }) => {
             </thead>
             <tbody>
               {blockedClients.map((client) => {
-                const isSim =
-                  client.isSimulation || client.clientType === "SIMULATION";
-
                 return (
                   <tr key={client.clientId}>
                     <td>
@@ -97,16 +94,12 @@ const BlockedClients = ({ blockedClients = [], onRefresh }) => {
                           fontWeight: 800,
                           padding: "0.15rem 0.45rem",
                           borderRadius: "4px",
-                          background: isSim
-                            ? "rgba(168, 85, 247, 0.2)"
-                            : "rgba(239, 68, 68, 0.2)",
-                          color: isSim ? "#c084fc" : "#ef4444",
-                          border: isSim
-                            ? "1px solid rgba(168, 85, 247, 0.3)"
-                            : "1px solid rgba(239, 68, 68, 0.3)",
+                          background: "rgba(239, 68, 68, 0.2)",
+                          color: "#ef4444",
+                          border: "1px solid rgba(239, 68, 68, 0.3)",
                         }}
                       >
-                        {isSim ? "SIMULATION" : "REAL"}
+                        🔴 BLOCKED
                       </span>
                     </td>
                     <td>
@@ -114,7 +107,6 @@ const BlockedClients = ({ blockedClients = [], onRefresh }) => {
                         style={{
                           fontWeight: 700,
                           fontSize: "0.82rem",
-                          color: isSim ? "#c084fc" : "inherit",
                         }}
                       >
                         {client.clientId}

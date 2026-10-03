@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const authMiddleware = require("../middleware/authMiddleware");
 const roleMiddleware = require("../middleware/roleMiddleware");
-const { adminLimiter, securityTestLimiter } = require("../middleware/rateLimiter");
+const { adminLimiter } = require("../middleware/rateLimiter");
 
 const {
   getStats,
@@ -14,9 +14,6 @@ const {
   unblockClient,
   exportCSV,
   getSystemStatus,
-  handleTestTraffic,
-  startSimulation,
-  stopSimulation,
   getWebsiteLockdownStatus,
   enableWebsiteLockdown,
   restoreWebsite,
@@ -24,16 +21,6 @@ const {
   unblockUser,
   blockUser,
 } = require("../controllers/securityGatewayController");
-
-// Dedicated internal test endpoint for Security Test Lab
-// Evaluates individual synthetic test requests under verified simulation context
-router.post(
-  "/test-traffic",
-  authMiddleware,
-  roleMiddleware("admin"),
-  securityTestLimiter,
-  handleTestTraffic
-);
 
 // Super Admin Emergency Controls (Strictly requires SUPER_ADMIN role)
 router.get(
@@ -70,9 +57,6 @@ router.get("/admin/blocked", getBlockedClients);
 router.post("/admin/unblock/:clientId", unblockClient);
 router.get("/admin/export", exportCSV);
 router.get("/admin/status", getSystemStatus);
-router.post("/admin/test/start", startSimulation);
-router.post("/admin/test/run", startSimulation); // backwards compatible alias
-router.post("/admin/test/stop", stopSimulation);
 
 // Blocked Users Management APIs (Admin & Super Admin)
 router.get("/admin/blocked-users", getBlockedUsers);

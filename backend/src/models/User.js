@@ -103,17 +103,6 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
-
-    isSecurityTestAccount: {
-      type: Boolean,
-      default: false,
-      index: true,
-    },
-
-    simulationId: {
-      type: String,
-      default: null,
-    },
   },
   {
     timestamps: true,

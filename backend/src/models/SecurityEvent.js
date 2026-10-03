@@ -101,32 +101,14 @@ const securityEventSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: {},
     },
-    isSimulation: {
-      type: Boolean,
-      default: false,
-      index: true,
-    },
-    simulationId: {
-      type: String,
-      default: null,
-      index: true,
-    },
-    testAccountId: {
-      type: String,
-      default: null,
-    },
-    clientType: {
-      type: String,
-      enum: ["REAL", "SIMULATION"],
-      default: "REAL",
-      index: true,
-    },
   },
   {
     timestamps: true,
   }
 );
 
-securityEventSchema.index({ timestamp: -1, isSimulation: 1 });
+securityEventSchema.index({ timestamp: -1 });
+securityEventSchema.index({ clientIdentifier: 1, timestamp: -1 });
+securityEventSchema.index({ ipAddress: 1, timestamp: -1 });
 
 module.exports = mongoose.model("SecurityEvent", securityEventSchema);

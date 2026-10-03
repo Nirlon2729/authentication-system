@@ -11,6 +11,11 @@ const {
   ROLES,
   BLOCK_SOURCES,
 } = require("../constants/securityEvents");
+const {
+  isProtectedSuperAdmin,
+  isSuperAdmin,
+  PROTECTED_SUPER_ADMIN_EMAIL,
+} = require("../utils/authHelpers");
 
 let SecurityEvent;
 try {
@@ -35,7 +40,7 @@ class SecurityGatewayService {
   constructor() {
     // client_id -> Array of { timestamp, path, payloadBytes, status, account, method, requestId }
     this.trafficLogs = new Map();
-    // client_id -> { expiry, reason, score, ipAddress, userAgent, createdAt, endpoint, clientType, simulationId }
+    // client_id -> { expiry, reason, score, ipAddress, userAgent, createdAt, endpoint }
     this.blockedClients = new Map();
     // account/email -> Array of timestamps of failed logins
     this.failedLoginsByAccount = new Map();
@@ -43,12 +48,11 @@ class SecurityGatewayService {
     this.failedOTPsByAccount = new Map();
     // email -> lastAlertTimestamp
     this.alertCooldowns = new Map();
+    // userId -> { blockedUntil, reason }
+    this.blockedUserAccounts = new Map();
 
     // In-memory live event buffer for real-time dashboard stream
     this.liveEvents = [];
-
-    // Active security test simulations (simulationId -> context)
-    this.activeSimulations = new Map();
 
     // Real production traffic telemetry counters
     this.totalRequests = 0;
@@ -56,15 +60,6 @@ class SecurityGatewayService {
     this.suspiciousRequests = 0;
     this.blockedRequests = 0;
     this.criticalEvents = 0;
-
-    // Simulation traffic telemetry counters
-    this.simulationCounters = {
-      total: 0,
-      allowed: 0,
-      suspicious: 0,
-      blocked: 0,
-      critical: 0,
-    };
 
     this.lastEventTime = new Date();
 
@@ -80,188 +75,6 @@ class SecurityGatewayService {
   getClientIdentifier(ip = "127.0.0.1", userAgent = "Unknown") {
     const raw = `${(ip || "127.0.0.1").trim()}|${(userAgent || "Unknown").trim()}`;
     return crypto.createHash("sha256").update(raw).digest("hex").slice(0, 16);
-  }
-
-  // =========================================================================
-  // Controlled Simulation Lifecycle & Identity Isolation
-  // =========================================================================
-
-  /**
-   * Initializes a dedicated, isolated test simulation context for an admin.
-   */
-  createSimulation({ adminId = "admin", testType = "NORMAL_TRAFFIC", requestCount = 25, intervalMs = 250 }) {
-    const simulationId = `security-test-${crypto.randomUUID()}`;
-    const testAccountId = `sim-account-${crypto.randomBytes(6).toString("hex")}`;
-    const testEmail = `security-test-${crypto.randomBytes(4).toString("hex")}@example.invalid`;
-    const testClientId = `SIMULATED_ATTACK_${crypto.randomBytes(6).toString("hex").toUpperCase()}`;
-    const syntheticIp = `10.255.${Math.floor(Math.random() * 240) + 1}.${Math.floor(Math.random() * 240) + 1}`;
-    const syntheticUserAgent = `SentinelAI-Security-Test/2.0 (Synthetic; BotEngine; +https://security.local)`;
-    const createdAt = Date.now();
-    const expiresAt = createdAt + 15 * 60 * 1000; // 15-minute validity window
-
-    const tokenSecret = process.env.JWT_SECRET || "sentinel-security-test-secret-salt";
-    const simulationToken = crypto
-      .createHmac("sha256", tokenSecret)
-      .update(`${simulationId}:${adminId}:${expiresAt}`)
-      .digest("hex");
-
-    const simulationContext = {
-      simulationId,
-      adminId: String(adminId),
-      testAccountId,
-      testEmail,
-      testClientId,
-      syntheticIp,
-      syntheticUserAgent,
-      testType,
-      requestCount: Math.min(100, Math.max(5, parseInt(requestCount, 10) || 25)),
-      intervalMs: Math.min(2000, Math.max(50, parseInt(intervalMs, 10) || 250)),
-      simulationToken,
-      createdAt,
-      expiresAt,
-      isRunning: true,
-      metrics: {
-        sent: 0,
-        allowed: 0,
-        suspicious: 0,
-        blocked: 0,
-        peakRisk: 0,
-      },
-    };
-
-    this.activeSimulations.set(simulationId, simulationContext);
-
-    // Record system event for simulation start
-    this.logSecurityEvent({
-      eventType: SECURITY_EVENT_TYPES.SIMULATION_STARTED,
-      severity: SEVERITY_LEVELS.LOW,
-      ipAddress: syntheticIp,
-      clientIdentifier: testClientId,
-      userAgent: syntheticUserAgent,
-      endpoint: "/api/security/admin/test/start",
-      httpMethod: "POST",
-      httpStatus: 200,
-      userEmail: testEmail,
-      actionTaken: GATEWAY_ACTIONS.MONITORED,
-      reason: `Controlled security simulation [${testType}] initiated by admin.`,
-      riskScore: 0,
-      gatewayDecision: GATEWAY_DECISIONS.NORMAL,
-      isSimulation: true,
-      simulationId,
-      testAccountId,
-      clientType: CLIENT_TYPES.SIMULATION,
-      metadata: { testType, simulationId, synthetic: true },
-    }).catch((e) => console.error("[SecurityGateway] Simulation start log error:", e.message));
-
-    return simulationContext;
-  }
-
-  /**
-   * Cryptographically validates a simulation authorization token
-   */
-  verifySimulationToken(simulationId, token) {
-    if (!simulationId || !token) return null;
-    const sim = this.activeSimulations.get(simulationId);
-    if (!sim) return null;
-
-    if (!sim.isRunning || Date.now() > sim.expiresAt) {
-      this.activeSimulations.delete(simulationId);
-      return null;
-    }
-
-    try {
-      const tokenSecret = process.env.JWT_SECRET || "sentinel-security-test-secret-salt";
-      const expectedToken = crypto
-        .createHmac("sha256", tokenSecret)
-        .update(`${sim.simulationId}:${sim.adminId}:${sim.expiresAt}`)
-        .digest("hex");
-
-      const tokenBuf = Buffer.from(token, "utf8");
-      const expectedBuf = Buffer.from(expectedToken, "utf8");
-
-      if (tokenBuf.length === expectedBuf.length && crypto.timingSafeEqual(tokenBuf, expectedBuf)) {
-        return sim;
-      }
-    } catch (_e) {
-      return null;
-    }
-
-    return null;
-  }
-
-  /**
-   * Safely stops an active simulation and cleans temporary test state
-   */
-  stopSimulation(simulationId) {
-    if (!simulationId) {
-      // Clear all simulations if no ID specified
-      for (const [id, sim] of this.activeSimulations.entries()) {
-        this.cleanSimulationState(id, sim.testClientId, sim.testEmail);
-      }
-      this.activeSimulations.clear();
-      return true;
-    }
-
-    const sim = this.activeSimulations.get(simulationId);
-    if (sim) {
-      sim.isRunning = false;
-      this.cleanSimulationState(simulationId, sim.testClientId, sim.testEmail);
-      this.activeSimulations.delete(simulationId);
-
-      this.logSecurityEvent({
-        eventType: SECURITY_EVENT_TYPES.SIMULATION_STOPPED,
-        severity: SEVERITY_LEVELS.LOW,
-        ipAddress: sim.syntheticIp,
-        clientIdentifier: sim.testClientId,
-        userAgent: sim.syntheticUserAgent,
-        endpoint: "/api/security/admin/test/stop",
-        httpMethod: "POST",
-        httpStatus: 200,
-        userEmail: sim.testEmail,
-        actionTaken: GATEWAY_ACTIONS.ALLOWED,
-        reason: `Controlled security simulation [${sim.testType}] stopped and temporary test state cleaned.`,
-        riskScore: 0,
-        gatewayDecision: GATEWAY_DECISIONS.NORMAL,
-        isSimulation: true,
-        simulationId,
-        testAccountId: sim.testAccountId,
-        clientType: CLIENT_TYPES.SIMULATION,
-        metadata: { testType: sim.testType, simulationId, synthetic: true },
-      }).catch((e) => console.error("[SecurityGateway] Simulation stop log error:", e.message));
-
-      return true;
-    }
-
-    return false;
-  }
-
-  /**
-   * Prunes in-memory sliding logs, failed login counters, and simulation blocks
-   */
-  cleanSimulationState(simulationId, testClientId, testEmail) {
-    if (testClientId) {
-      this.trafficLogs.delete(testClientId);
-      this.blockedClients.delete(testClientId);
-    }
-    if (testEmail) {
-      this.failedLoginsByAccount.delete(testEmail.toLowerCase().trim());
-      this.failedOTPsByAccount.delete(testEmail.toLowerCase().trim());
-    }
-
-    // Clean any other blocked entries tagged with this simulationId
-    for (const [clientId, data] of this.blockedClients.entries()) {
-      if (data.simulationId === simulationId) {
-        this.blockedClients.delete(clientId);
-      }
-    }
-  }
-
-  /**
-   * Checks if a simulation is active
-   */
-  isSimulationActive(simulationId) {
-    const sim = this.activeSimulations.get(simulationId);
-    return !!(sim && sim.isRunning && Date.now() <= sim.expiresAt);
   }
 
   // =========================================================================
@@ -282,31 +95,17 @@ class SecurityGatewayService {
     account = "",
     requestId = "",
     decision = GATEWAY_DECISIONS.NORMAL,
-    clientType = CLIENT_TYPES.REAL,
-    isSimulation = false,
-    simulationId = null,
   }) {
     const now = Date.now();
     this.lastEventTime = new Date();
 
-    if (isSimulation) {
-      this.simulationCounters.total++;
-      if (decision === GATEWAY_DECISIONS.BLOCKED || status === 403) {
-        this.simulationCounters.blocked++;
-      } else if (decision === GATEWAY_DECISIONS.SUSPICIOUS || decision === GATEWAY_DECISIONS.HIGH_RISK) {
-        this.simulationCounters.suspicious++;
-      } else {
-        this.simulationCounters.allowed++;
-      }
+    this.totalRequests++;
+    if (decision === GATEWAY_DECISIONS.BLOCKED || status === 403) {
+      this.blockedRequests++;
+    } else if (decision === GATEWAY_DECISIONS.SUSPICIOUS || decision === GATEWAY_DECISIONS.HIGH_RISK) {
+      this.suspiciousRequests++;
     } else {
-      this.totalRequests++;
-      if (decision === GATEWAY_DECISIONS.BLOCKED || status === 403) {
-        this.blockedRequests++;
-      } else if (decision === GATEWAY_DECISIONS.SUSPICIOUS || decision === GATEWAY_DECISIONS.HIGH_RISK) {
-        this.suspiciousRequests++;
-      } else {
-        this.allowedRequests++;
-      }
+      this.allowedRequests++;
     }
 
     if (!this.trafficLogs.has(clientIdentifier)) {
@@ -324,9 +123,6 @@ class SecurityGatewayService {
       ipAddress,
       userAgent,
       requestId,
-      clientType,
-      isSimulation,
-      simulationId,
     });
 
     // Trim old logs outside sliding window
@@ -395,6 +191,12 @@ class SecurityGatewayService {
   recordFailedLogin(email) {
     if (!email) return 1;
     const normalized = email.toLowerCase().trim();
+
+    // The protected Super Admin is permanently immune from failed login counters
+    if (normalized === PROTECTED_SUPER_ADMIN_EMAIL.toLowerCase().trim()) {
+      return 0;
+    }
+
     const now = Date.now();
     const windowMs = 5 * 60 * 1000; // 5-minute window for failed logins
 
@@ -425,6 +227,12 @@ class SecurityGatewayService {
   recordFailedOTP(email) {
     if (!email) return 1;
     const normalized = email.toLowerCase().trim();
+
+    // The protected Super Admin is permanently immune from failed OTP counters
+    if (normalized === PROTECTED_SUPER_ADMIN_EMAIL.toLowerCase().trim()) {
+      return 0;
+    }
+
     const now = Date.now();
     const windowMs = 5 * 60 * 1000;
 
@@ -450,15 +258,13 @@ class SecurityGatewayService {
   }
 
   // =========================================================================
-  // Blocklist Management with Total Simulation / Real Client Isolation
+  // Blocklist Management
   // =========================================================================
 
   /**
    * Checks if a client is currently blocked.
-   * STRICT SAFETY GUARANTEE:
-   * If a real client checks the blocklist, a SIMULATION block will NEVER block them.
    */
-  isClientBlocked(clientIdentifier, clientType = CLIENT_TYPES.REAL) {
+  isClientBlocked(clientIdentifier) {
     if (!this.blockedClients.has(clientIdentifier)) {
       return { isBlocked: false, reason: null, remainingSeconds: 0 };
     }
@@ -472,11 +278,6 @@ class SecurityGatewayService {
       return { isBlocked: false, reason: null, remainingSeconds: 0 };
     }
 
-    // Type namespace check: A real client must NEVER be blocked by a simulation block
-    if (clientType === CLIENT_TYPES.REAL && blockData.clientType === CLIENT_TYPES.SIMULATION) {
-      return { isBlocked: false, reason: null, remainingSeconds: 0 };
-    }
-
     const remainingSeconds = Math.max(0, Math.ceil((blockData.expiry - now) / 1000));
     return {
       isBlocked: true,
@@ -484,13 +285,19 @@ class SecurityGatewayService {
       riskScore: blockData.score,
       remainingSeconds,
       createdAt: blockData.createdAt,
-      clientType: blockData.clientType || CLIENT_TYPES.REAL,
-      simulationId: blockData.simulationId || null,
+      clientType: CLIENT_TYPES.REAL,
     };
   }
 
   /**
-   * Temporarily blocks a client identifier with explicit type namespace
+   * Helper alias returning a boolean indicating if clientIdentifier is blocked
+   */
+  isBlocked(clientIdentifier) {
+    return this.isClientBlocked(clientIdentifier).isBlocked;
+  }
+
+  /**
+   * Temporarily blocks a client identifier
    */
   blockClient(
     clientIdentifier,
@@ -498,9 +305,7 @@ class SecurityGatewayService {
     durationSeconds = 300,
     ipAddress = "127.0.0.1",
     userAgent = "",
-    endpoint = "",
-    clientType = CLIENT_TYPES.REAL,
-    simulationId = null
+    endpoint = ""
   ) {
     const now = Date.now();
     const expiry = now + durationSeconds * 1000;
@@ -513,15 +318,10 @@ class SecurityGatewayService {
       userAgent,
       createdAt: new Date(now),
       endpoint,
-      clientType,
-      simulationId,
+      clientType: CLIENT_TYPES.REAL,
     });
 
-    if (clientType === CLIENT_TYPES.SIMULATION) {
-      this.simulationCounters.blocked++;
-    } else {
-      this.blockedRequests++;
-    }
+    this.blockedRequests++;
   }
 
   /**
@@ -536,19 +336,14 @@ class SecurityGatewayService {
   }
 
   /**
-   * Gets list of active blocked clients with optional traffic type filter
+   * Gets list of active blocked clients
    */
-  getBlockedClientsList(trafficType = "ALL") {
+  getBlockedClientsList() {
     const now = Date.now();
     const list = [];
 
     for (const [clientId, data] of this.blockedClients.entries()) {
       if (now <= data.expiry) {
-        const isSim = data.clientType === CLIENT_TYPES.SIMULATION;
-
-        if (trafficType === "REAL" && isSim) continue;
-        if (trafficType === "SIMULATION" && !isSim) continue;
-
         list.push({
           clientId,
           reason: data.reason,
@@ -559,9 +354,8 @@ class SecurityGatewayService {
           createdAt: data.createdAt || new Date(),
           expiry: new Date(data.expiry),
           remainingSeconds: Math.ceil((data.expiry - now) / 1000),
-          clientType: data.clientType || CLIENT_TYPES.REAL,
-          simulationId: data.simulationId || null,
-          isSimulation: isSim,
+          clientType: CLIENT_TYPES.REAL,
+          isSimulation: false,
         });
       } else {
         this.blockedClients.delete(clientId);
@@ -624,17 +418,37 @@ class SecurityGatewayService {
    * 3. NEVER blocks other legitimate users sharing an IP or subnet.
    * 4. SUPER_ADMIN accounts are explicitly immune from automated blocks.
    */
-  async blockUserAccount({
-    userId,
-    userEmail = "",
-    reason = "Automated anomalous behavior detected",
-    durationMinutes = null,
-    source = BLOCK_SOURCES.AI_SECURITY_GATEWAY,
-    adminUserId = null,
-    req = null,
-  }) {
+  async blockUserAccount(arg1, arg2, arg3, arg4) {
+    let userId, userEmail, reason, durationMinutes, source, adminUserId, req;
+    if (arg1 && typeof arg1 === "object" && !mongoose.Types.ObjectId.isValid(arg1)) {
+      ({
+        userId,
+        userEmail = "",
+        reason = "Automated anomalous behavior detected",
+        durationMinutes = null,
+        source = BLOCK_SOURCES.AI_SECURITY_GATEWAY,
+        adminUserId = null,
+        req = null,
+      } = arg1);
+    } else {
+      userId = arg1;
+      reason = arg2 || "Automated anomalous behavior detected";
+      durationMinutes = arg3 || null;
+      userEmail = arg4 || "";
+      source = BLOCK_SOURCES.AI_SECURITY_GATEWAY;
+    }
+
     if (!userId && !userEmail) {
-      return { success: false, reason: "No user identifier provided" };
+      return { success: false, blocked: false, reason: "No user identifier provided" };
+    }
+
+    // Direct pre-check for protected Super Admin identity
+    if (
+      isProtectedSuperAdmin(userEmail) ||
+      isProtectedSuperAdmin(userId) ||
+      userEmail.toLowerCase().trim() === PROTECTED_SUPER_ADMIN_EMAIL.toLowerCase().trim()
+    ) {
+      return { success: false, blocked: false, reason: "SUPER_ADMIN accounts cannot be locked out." };
     }
 
     const duration = durationMinutes || Number(process.env.SECURITY_USER_BLOCK_MINUTES) || 15;
@@ -642,31 +456,60 @@ class SecurityGatewayService {
 
     let user = null;
     if (User) {
-      if (userId) {
+      if (userId && mongoose.Types.ObjectId.isValid(userId)) {
         user = await User.findById(userId);
       } else if (userEmail) {
         user = await User.findOne({ email: userEmail.toLowerCase().trim() });
       }
     }
 
-    if (!user) {
-      return { success: false, reason: "User not found" };
+    // Safety Rule 1: Super Admin and protected accounts must NEVER be locked out
+    if (user && (isProtectedSuperAdmin(user) || user.role === ROLES.SUPER_ADMIN || isSuperAdmin(user))) {
+      console.warn(`[SecurityGateway] Attempted to block Super Admin (${user.email}) - Operation blocked by safety guard.`);
+
+      const ipAddress = req?.ip || req?.socket?.remoteAddress || "127.0.0.1";
+      const userAgent = req?.headers?.["user-agent"] || "";
+      const requestId = req?.headers?.["x-request-id"] || "";
+
+      await this.logSecurityEvent({
+        eventType: "SUPER_ADMIN_BLOCK_EXCLUDED",
+        severity: SEVERITY_LEVELS.LOW,
+        requestId,
+        ipAddress,
+        clientIdentifier: this.getClientIdentifier(ipAddress, userAgent),
+        userAgent,
+        userId: user._id,
+        userEmail: user.email,
+        actionTaken: GATEWAY_ACTIONS.ALLOWED,
+        reason: `Automated or manual block on protected Super Admin account (${user.email}) was safely excluded by system policy.`,
+        riskScore: 0,
+        metadata: { excludedUser: user.email, excludedRole: user.role },
+        isSimulation: false,
+      });
+
+      return { success: false, blocked: false, reason: "SUPER_ADMIN accounts cannot be locked out." };
     }
 
-    // Safety check: Super Admin must NEVER be locked out by automated heuristics
-    if (user.role === ROLES.SUPER_ADMIN) {
-      console.warn(`[SecurityGateway] Attempted to block SUPER_ADMIN (${user.email}) - Operation blocked by safety guard.`);
-      return { success: false, reason: "SUPER_ADMIN accounts cannot be locked out." };
+    // Safety Rule 2: Prevent administrators from blocking their own account
+    if (adminUserId && user?._id && adminUserId.toString() === user._id.toString()) {
+      return { success: false, blocked: false, reason: "Administrators cannot block their own account." };
     }
 
-    user.isBlocked = true;
-    user.blockedUntil = blockedUntil;
-    user.blockReason = reason;
-    user.blockSource = source;
-    user.blockedAt = new Date();
-    user.blockedBy = adminUserId || null;
+    const targetIdStr = user?._id ? user._id.toString() : (userId ? userId.toString() : "");
+    if (targetIdStr) {
+      this.blockedUserAccounts.set(targetIdStr, { blockedUntil, reason });
+    }
 
-    await user.save();
+    if (user) {
+      user.isBlocked = true;
+      user.blockedUntil = blockedUntil;
+      user.blockReason = reason;
+      user.blockSource = source;
+      user.blockedAt = new Date();
+      user.blockedBy = adminUserId || null;
+
+      await user.save();
+    }
 
     const ipAddress = req?.ip || req?.socket?.remoteAddress || "127.0.0.1";
     const userAgent = req?.headers?.["user-agent"] || "";
@@ -679,8 +522,8 @@ class SecurityGatewayService {
       ipAddress,
       clientIdentifier: this.getClientIdentifier(ipAddress, userAgent),
       userAgent,
-      userId: user._id,
-      userEmail: user.email,
+      userId: user?._id || userId,
+      userEmail: user?.email || userEmail,
       actionTaken: GATEWAY_ACTIONS.BLOCKED,
       reason: `Account temporarily blocked: ${reason}`,
       riskScore: 90,
@@ -693,19 +536,33 @@ class SecurityGatewayService {
       isSimulation: false,
     });
 
-    console.warn(`⚠️ [SecurityGateway] User account ${user.email} (${user._id}) temporarily blocked for ${duration}m. Reason: ${reason}`);
-
     return {
       success: true,
+      blocked: true,
       user: {
-        id: user._id,
-        email: user.email,
+        id: user?._id || userId,
+        email: user?.email || userEmail,
         isBlocked: true,
         blockedUntil,
         blockReason: reason,
         remainingSeconds: duration * 60,
       },
     };
+  }
+
+  /**
+   * Checks whether a user account is currently blocked in memory
+   */
+  isAccountBlocked(userId) {
+    if (!userId) return false;
+    const idStr = userId.toString();
+    const entry = this.blockedUserAccounts.get(idStr);
+    if (!entry) return false;
+    if (entry.blockedUntil && new Date(entry.blockedUntil) <= new Date()) {
+      this.blockedUserAccounts.delete(idStr);
+      return false;
+    }
+    return true;
   }
 
   /**
@@ -843,8 +700,6 @@ class SecurityGatewayService {
 
   /**
    * Evaluates incoming requests through the behavioral ML threat engine.
-   * If isSimulation is true, evaluates under the synthetic identity and blocks
-   * ONLY the testClientId, leaving the caller's real client identifier untouched.
    */
   async evaluateRequest({
     ipAddress = "127.0.0.1",
@@ -854,17 +709,11 @@ class SecurityGatewayService {
     payloadBytes = 0,
     account = "",
     requestId = "",
-    clientType = CLIENT_TYPES.REAL,
-    isSimulation = false,
-    simulationId = null,
-    testClientId = null,
   }) {
-    // Resolve identifier: simulation uses synthetic testClientId; real uses hashed IP+UA
-    const clientIdentifier =
-      isSimulation && testClientId ? testClientId : this.getClientIdentifier(ipAddress, userAgent);
+    const clientIdentifier = this.getClientIdentifier(ipAddress, userAgent);
 
     // Layer 1: Check existing blocklist
-    const blockCheck = this.isClientBlocked(clientIdentifier, clientType);
+    const blockCheck = this.isClientBlocked(clientIdentifier);
     if (blockCheck.isBlocked) {
       return {
         decision: GATEWAY_DECISIONS.BLOCKED,
@@ -873,9 +722,8 @@ class SecurityGatewayService {
         action: GATEWAY_ACTIONS.BLOCKED,
         reason: blockCheck.reason || "Client is temporarily blocked by Security Gateway.",
         clientIdentifier,
-        clientType,
-        isSimulation,
-        simulationId,
+        clientType: CLIENT_TYPES.REAL,
+        isSimulation: false,
         indicators: ["Client ID present on active temporary blocklist"],
       };
     }
@@ -946,20 +794,14 @@ class SecurityGatewayService {
       decision = GATEWAY_DECISIONS.CRITICAL;
       severity = SEVERITY_LEVELS.CRITICAL;
       action = GATEWAY_ACTIONS.BLOCKED;
-      if (isSimulation) {
-        this.simulationCounters.critical++;
-      } else {
-        this.criticalEvents++;
-      }
+      this.criticalEvents++;
       this.blockClient(
         clientIdentifier,
         indicators.join("; ") || "Automated high-risk cyber anomaly",
         300,
         ipAddress,
         userAgent,
-        path,
-        clientType,
-        simulationId
+        path
       );
     } else if (riskScore >= 60) {
       decision = GATEWAY_DECISIONS.HIGH_RISK;
@@ -971,9 +813,7 @@ class SecurityGatewayService {
         120,
         ipAddress,
         userAgent,
-        path,
-        clientType,
-        simulationId
+        path
       );
     } else if (riskScore >= 30) {
       decision = GATEWAY_DECISIONS.SUSPICIOUS;
@@ -989,9 +829,8 @@ class SecurityGatewayService {
       reason: indicators.join(", ") || "Normal baseline traffic",
       metrics,
       clientIdentifier,
-      clientType,
-      isSimulation,
-      simulationId,
+      clientType: CLIENT_TYPES.REAL,
+      isSimulation: false,
       indicators,
     };
   }
@@ -1023,10 +862,6 @@ class SecurityGatewayService {
     riskScore = 0,
     gatewayDecision = GATEWAY_DECISIONS.NORMAL,
     metadata = {},
-    isSimulation = false,
-    simulationId = null,
-    testAccountId = null,
-    clientType = CLIENT_TYPES.REAL,
   }) {
     const client_id = clientIdentifier || this.getClientIdentifier(ipAddress, userAgent);
     const timestamp = new Date();
@@ -1051,14 +886,7 @@ class SecurityGatewayService {
       reason,
       riskScore,
       gatewayDecision,
-      metadata: {
-        ...metadata,
-        ...(isSimulation ? { synthetic: true, simulationId, testAccountId } : {}),
-      },
-      isSimulation: !!isSimulation,
-      simulationId: simulationId || null,
-      testAccountId: testAccountId || null,
-      clientType: clientType || (isSimulation ? CLIENT_TYPES.SIMULATION : CLIENT_TYPES.REAL),
+      metadata,
     };
 
     // Maintain in-memory live stream for SOC monitoring
@@ -1080,23 +908,14 @@ class SecurityGatewayService {
   }
 
   /**
-   * Returns in-memory live events stream with optional traffic type filter
+   * Returns in-memory live events stream
    */
-  getLiveEvents(limit = 50, trafficType = "ALL") {
-    let events = this.liveEvents;
-
-    if (trafficType === "REAL") {
-      events = events.filter((e) => !e.isSimulation);
-    } else if (trafficType === "SIMULATION") {
-      events = events.filter((e) => e.isSimulation);
-    }
-
-    return events.slice(0, limit);
+  getLiveEvents(limit = 50) {
+    return this.liveEvents.slice(0, limit);
   }
 
   /**
    * Sends account security alert email with cooldown throttling.
-   * Strictly suppresses email notifications if this is a simulation event or test address.
    */
   async sendSecurityAlertEmailIfNeeded({
     userEmail,
@@ -1108,20 +927,18 @@ class SecurityGatewayService {
     actionTaken = "Monitored",
     isBlocked = false,
     recommendation,
-    isSimulation = false,
   }) {
     if (!userEmail) return { sent: false, suppressed: true };
 
     const normalized = userEmail.toLowerCase().trim();
 
-    // Safety rule: never email test accounts or during simulations
+    // Safety rule: never email test accounts or invalid domains
     if (
-      isSimulation ||
       normalized.endsWith(".invalid") ||
       normalized.includes("example.invalid") ||
       normalized.startsWith("security-test")
     ) {
-      return { sent: false, suppressed: true, reason: "Simulation email suppressed" };
+      return { sent: false, suppressed: true, reason: "Test email address suppressed" };
     }
 
     const now = Date.now();
@@ -1157,56 +974,22 @@ class SecurityGatewayService {
   }
 
   /**
-   * Returns current gateway system status, support trafficType filter
+   * Returns current gateway system status
    */
-  getGatewayStatus(trafficType = "ALL") {
-    const isSimOnly = trafficType === "SIMULATION";
-    const isRealOnly = trafficType === "REAL";
-
-    const totalReq = isSimOnly
-      ? this.simulationCounters.total
-      : isRealOnly
-      ? this.totalRequests
-      : this.totalRequests + this.simulationCounters.total;
-
-    const allowedReq = isSimOnly
-      ? this.simulationCounters.allowed
-      : isRealOnly
-      ? this.allowedRequests
-      : this.allowedRequests + this.simulationCounters.allowed;
-
-    const suspiciousReq = isSimOnly
-      ? this.simulationCounters.suspicious
-      : isRealOnly
-      ? this.suspiciousRequests
-      : this.suspiciousRequests + this.simulationCounters.suspicious;
-
-    const blockedReq = isSimOnly
-      ? this.simulationCounters.blocked
-      : isRealOnly
-      ? this.blockedRequests
-      : this.blockedRequests + this.simulationCounters.blocked;
-
-    const criticalEvt = isSimOnly
-      ? this.simulationCounters.critical
-      : isRealOnly
-      ? this.criticalEvents
-      : this.criticalEvents + this.simulationCounters.critical;
-
+  getGatewayStatus() {
     return {
       status: "ONLINE",
       aiEngine: this.isGatewayAvailable ? "READY (FastAPI + IsolationForest)" : "READY (In-Process ML Fallback)",
       redis: this.isRedisConnected ? "CONNECTED" : "FALLBACK_MODE",
       backend: "ONLINE",
       protection: "ACTIVE",
-      totalRequests: totalReq,
-      allowedRequests: allowedReq,
-      suspiciousRequests: suspiciousReq,
-      blockedRequests: blockedReq,
-      criticalEvents: criticalEvt,
-      activeBlockedClients: this.getBlockedClientsList(trafficType).length,
+      totalRequests: this.totalRequests,
+      allowedRequests: this.allowedRequests,
+      suspiciousRequests: this.suspiciousRequests,
+      blockedRequests: this.blockedRequests,
+      criticalEvents: this.criticalEvents,
+      activeBlockedClients: this.getBlockedClientsList().length,
       lastEvent: this.lastEventTime,
-      activeSimulationsCount: this.activeSimulations.size,
     };
   }
 }

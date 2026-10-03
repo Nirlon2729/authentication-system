@@ -14,12 +14,7 @@ class SecurityMonitoringService {
     const oneMinuteAgo = new Date(now.getTime() - 60 * 1000);
     const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
 
-    const baseFilter = {};
-    if (trafficType === CLIENT_TYPES.REAL) {
-      baseFilter.isSimulation = { $ne: true };
-    } else if (trafficType === CLIENT_TYPES.SIMULATION) {
-      baseFilter.isSimulation = true;
-    }
+    const baseFilter = { isSimulation: { $ne: true } };
 
     let dbStats = {
       totalEvents: 0,
@@ -78,7 +73,7 @@ class SecurityMonitoringService {
       console.error("[SecurityMonitoring] Stats aggregation fallback:", err.message);
     }
 
-    const blockedClientsList = securityGatewayService.getBlockedClientsList(trafficType);
+    const blockedClientsList = securityGatewayService.getBlockedClientsList();
 
     return {
       totalRequests: Math.max(gatewayStatus.totalRequests, dbStats.totalEvents),
@@ -155,12 +150,7 @@ class SecurityMonitoringService {
       });
     }
 
-    const query = { timestamp: { $gte: startTime } };
-    if (trafficType === CLIENT_TYPES.REAL) {
-      query.isSimulation = { $ne: true };
-    } else if (trafficType === CLIENT_TYPES.SIMULATION) {
-      query.isSimulation = true;
-    }
+    const query = { timestamp: { $gte: startTime }, isSimulation: { $ne: true } };
 
     try {
       const events = await SecurityEvent.find(query).select(
@@ -235,12 +225,7 @@ class SecurityMonitoringService {
       topClients: [],
     };
 
-    const simFilter = {};
-    if (trafficType === CLIENT_TYPES.REAL) {
-      simFilter.isSimulation = { $ne: true };
-    } else if (trafficType === CLIENT_TYPES.SIMULATION) {
-      simFilter.isSimulation = true;
-    }
+    const simFilter = { isSimulation: { $ne: true } };
 
     try {
       // 1. Risk distribution
@@ -354,13 +339,7 @@ class SecurityMonitoringService {
     endDate,
     trafficType = "ALL",
   }) {
-    const query = {};
-
-    if (trafficType === CLIENT_TYPES.REAL) {
-      query.isSimulation = { $ne: true };
-    } else if (trafficType === CLIENT_TYPES.SIMULATION) {
-      query.isSimulation = true;
-    }
+    const query = { isSimulation: { $ne: true } };
 
     if (severity && severity !== "ALL") {
       query.severity = severity.toUpperCase();
@@ -393,7 +372,6 @@ class SecurityMonitoringService {
         { endpoint: { $regex: search, $options: "i" } },
         { reason: { $regex: search, $options: "i" } },
         { requestId: { $regex: search, $options: "i" } },
-        { simulationId: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -455,7 +433,6 @@ class SecurityMonitoringService {
       "Gateway Decision",
       "Risk Score",
       "Reason",
-      "Simulation ID",
     ];
 
     const escapeCSV = (val) => {
@@ -484,7 +461,6 @@ class SecurityMonitoringService {
       escapeCSV(ev.gatewayDecision || "NORMAL"),
       escapeCSV(ev.riskScore || 0),
       escapeCSV(ev.reason || ""),
-      escapeCSV(ev.simulationId || ""),
     ]);
 
     return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");

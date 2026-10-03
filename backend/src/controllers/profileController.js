@@ -14,6 +14,7 @@ const passwordChangedTemplate = require("../templates/email/passwordChangedTempl
 const sendEmail = require("../services/emailService");
 const Session = require("../models/Session");
 const User = require("../models/User");
+const { isProtectedSuperAdmin } = require("../utils/authHelpers");
 
 const {
   updateProfile,
@@ -110,6 +111,13 @@ const deleteAccount = asyncHandler(async (req, res) => {
     return res.status(404).json({
       success: false,
       message: "User not found.",
+    });
+  }
+
+  if (isProtectedSuperAdmin(user)) {
+    return res.status(403).json({
+      success: false,
+      message: "The protected root Super Admin account cannot be deleted.",
     });
   }
 

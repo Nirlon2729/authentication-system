@@ -83,28 +83,11 @@ const securityGatewayMiddleware = async (req, res, next) => {
     }
   }
 
-  // 2. Validate Controlled Simulation Context (if provided)
-  const simulationId =
-    req.headers["x-simulation-id"] || req.body?.simulationId || req.query?.simulationId || "";
-  const simulationToken =
-    req.headers["x-simulation-token"] || req.body?.simulationToken || req.query?.simulationToken || "";
-
-  let validSimulation = null;
-  if (simulationId && simulationToken) {
-    validSimulation = securityGatewayService.verifySimulationToken(simulationId, simulationToken);
-  }
-
-  const isSimulation = !!validSimulation;
-  req.simulation = validSimulation;
-  req.isSimulation = isSimulation;
-
-  // Derive effective network identity
-  // If simulation: use synthetic test identity; otherwise use real caller identity
-  const ipAddress = isSimulation ? validSimulation.syntheticIp : rawIp;
-  const userAgent = isSimulation ? validSimulation.syntheticUserAgent : rawUserAgent;
-  const account = isSimulation ? validSimulation.testEmail : rawAccount;
-  const clientType = isSimulation ? CLIENT_TYPES.SIMULATION : CLIENT_TYPES.REAL;
-  const testClientId = isSimulation ? validSimulation.testClientId : null;
+  // 2. Derive effective network identity
+  const ipAddress = rawIp;
+  const userAgent = rawUserAgent;
+  const account = rawAccount;
+  const clientIdentifier = securityGatewayService.getClientIdentifier(ipAddress, userAgent);
 
   // 3. Evaluate request against AI Security Engine
   let evaluation = {
@@ -113,9 +96,9 @@ const securityGatewayMiddleware = async (req, res, next) => {
     riskScore: 0,
     action: GATEWAY_ACTIONS.ALLOWED,
     reason: "Normal baseline traffic",
-    clientIdentifier: testClientId || securityGatewayService.getClientIdentifier(ipAddress, userAgent),
-    clientType,
-    isSimulation,
+    clientIdentifier,
+    clientType: CLIENT_TYPES.REAL,
+    isSimulation: false,
   };
 
   try {
@@ -127,19 +110,13 @@ const securityGatewayMiddleware = async (req, res, next) => {
       payloadBytes,
       account,
       requestId,
-      clientType,
-      isSimulation,
-      simulationId: validSimulation?.simulationId || null,
-      testClientId,
+      clientType: CLIENT_TYPES.REAL,
+      isSimulation: false,
     });
 
     req.securityEvaluation = evaluation;
     res.setHeader("X-Security-Gateway-Status", evaluation.decision || "NORMAL");
     res.setHeader("X-Security-Risk-Score", String(evaluation.riskScore || 0));
-    if (isSimulation) {
-      res.setHeader("X-Security-Simulation", "true");
-      res.setHeader("X-Security-Simulation-ID", validSimulation.simulationId);
-    }
 
     // 4. Enforce blocking if High Risk, Critical, or Blocklisted
     if (
@@ -162,19 +139,12 @@ const securityGatewayMiddleware = async (req, res, next) => {
         reason: evaluation.reason || "Automated anomalous traffic detected and blocked by the security gateway.",
         riskScore: evaluation.riskScore || 85,
         gatewayDecision: evaluation.decision,
-        isSimulation,
-        simulationId: validSimulation?.simulationId || null,
-        testAccountId: validSimulation?.testAccountId || null,
-        clientType,
-        metadata: {
-          testType: validSimulation?.testType || "PRODUCTION",
-          simulationId: validSimulation?.simulationId || null,
-          synthetic: isSimulation,
-        },
+        isSimulation: false,
+        clientType: CLIENT_TYPES.REAL,
       });
 
-      // Dispatch alert email ONLY for real production accounts, NEVER for simulations
-      if (account && !isSimulation) {
+      // Dispatch alert email for production accounts
+      if (account) {
         securityGatewayService
           .sendSecurityAlertEmailIfNeeded({
             userEmail: account,
@@ -192,8 +162,8 @@ const securityGatewayMiddleware = async (req, res, next) => {
           .catch((e) => console.error("[SecurityGateway] Async alert error:", e.message));
       }
 
-      // If this was an authenticated real user, apply account-level temporary restriction to THAT user ONLY
-      if (!isSimulation && authenticatedUser) {
+      // If this was an authenticated user, apply account-level temporary restriction
+      if (authenticatedUser) {
         const blockResult = await securityGatewayService.blockUserAccount({
           userId: authenticatedUser._id,
           userEmail: authenticatedUser.email,
@@ -216,7 +186,6 @@ const securityGatewayMiddleware = async (req, res, next) => {
         message: "Automated anomalous traffic detected and blocked by the security gateway.",
         reason: evaluation.reason,
         requestId,
-        isSimulation,
         blockedClientId: evaluation.clientIdentifier,
       });
     }
@@ -239,9 +208,8 @@ const securityGatewayMiddleware = async (req, res, next) => {
         account,
         requestId,
         decision: evaluation.decision || "NORMAL",
-        clientType,
-        isSimulation,
-        simulationId: validSimulation?.simulationId || null,
+        clientType: CLIENT_TYPES.REAL,
+        isSimulation: false,
       });
     } catch (_e) {
       // safe fallback

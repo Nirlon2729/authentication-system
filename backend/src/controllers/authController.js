@@ -8,6 +8,7 @@ const hashOTP = require("../utils/hashOTP");
 const compareOTP = require("../utils/compareOTP");
 const otpTemplate = require("../templates/email/otpTemplate");
 const welcomeTemplate = require("../templates/email/welcomeTemplate");
+const passwordChangedTemplate = require("../templates/email/passwordChangedTemplate");
 const sendEmail = require("../services/emailService");
 const { sendNewLoginNotification } = require("../services/emailService");
 const { verifyGoogleToken } = require("../services/googleAuthService");
@@ -850,6 +851,7 @@ const resetPassword = asyncHandler(async (req, res) => {
   const hashedPassword = await hashPassword(password);
   user.password = hashedPassword;
   user.hasPassword = true;
+  user.refreshToken = "";
   await user.save();
 
   // Invalidate all previous sessions on password reset for security
@@ -857,6 +859,17 @@ const resetPassword = asyncHandler(async (req, res) => {
 
   // Clean up used OTP
   await deleteOTP(normalizedEmail, "PASSWORD_RESET");
+
+  // Send security confirmation email
+  try {
+    await sendEmail({
+      to: user.email,
+      subject: "Security Alert: Password Reset Successful",
+      html: passwordChangedTemplate(user.fullName),
+    });
+  } catch (emailError) {
+    console.error("❌ Failed to send password reset confirmation email:", emailError.message);
+  }
 
   const clientInfo = parseClientInfo(req);
   await securityGatewayService.logSecurityEvent({

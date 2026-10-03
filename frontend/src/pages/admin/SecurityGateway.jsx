@@ -4,8 +4,6 @@ import {
   Activity,
   Layers,
   UserX,
-  Cpu,
-  Filter,
   Users,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
@@ -17,7 +15,6 @@ import SecurityEventTable from "../../components/security/gateway/SecurityEventT
 import BlockedClients from "../../components/security/gateway/BlockedClients";
 import BlockedUsers from "../../components/security/gateway/BlockedUsers";
 import EmergencyControls from "../../components/security/gateway/EmergencyControls";
-import AttackSimulator from "../../components/security/gateway/AttackSimulator";
 import {
   fetchSecurityStats,
   fetchSecurityEvents,
@@ -33,9 +30,6 @@ const SecurityGateway = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
-
-  // Global Traffic Type Filter: "ALL" | "REAL" | "SIMULATION"
-  const [trafficType, setTrafficType] = useState("ALL");
 
   // Telemetry State
   const [stats, setStats] = useState(null);
@@ -60,15 +54,15 @@ const SecurityGateway = () => {
     eventType: "ALL",
   });
 
-  // Load complete SOC data with trafficType filter
+  // Load complete SOC data
   const loadDashboardData = useCallback(async () => {
     try {
       const [statsRes, timelineRes, threatsRes, blockedRes, feedRes] = await Promise.all([
-        fetchSecurityStats(trafficType),
-        fetchTrafficTimeline(currentRange, trafficType),
-        fetchThreatAnalytics(trafficType),
-        fetchBlockedClients(trafficType),
-        fetchLiveSecurityFeed(trafficType),
+        fetchSecurityStats(),
+        fetchTrafficTimeline(currentRange),
+        fetchThreatAnalytics(),
+        fetchBlockedClients(),
+        fetchLiveSecurityFeed(),
       ]);
 
       setStats(statsRes.stats || null);
@@ -83,12 +77,12 @@ const SecurityGateway = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentRange, isPaused, trafficType]);
+  }, [currentRange, isPaused]);
 
   // Load paginated events
   const loadEvents = useCallback(async () => {
     try {
-      const res = await fetchSecurityEvents({ ...filters, trafficType });
+      const res = await fetchSecurityEvents(filters);
       setEventData({
         events: res.events || [],
         pagination: res.pagination || { total: 0, page: 1, limit: 25, totalPages: 1 },
@@ -96,7 +90,7 @@ const SecurityGateway = () => {
     } catch (err) {
       console.error("[SOC Dashboard] Events fetch error:", err.message);
     }
-  }, [filters, trafficType]);
+  }, [filters]);
 
   useEffect(() => {
     loadDashboardData();
@@ -109,11 +103,11 @@ const SecurityGateway = () => {
 
     const interval = setInterval(async () => {
       try {
-        const feedRes = await fetchLiveSecurityFeed(trafficType);
+        const feedRes = await fetchLiveSecurityFeed();
         if (feedRes.liveEvents) {
           setLiveEvents(feedRes.liveEvents);
         }
-        const statsRes = await fetchSecurityStats(trafficType);
+        const statsRes = await fetchSecurityStats();
         if (statsRes.stats) {
           setStats(statsRes.stats);
         }
@@ -123,7 +117,7 @@ const SecurityGateway = () => {
     }, 3500);
 
     return () => clearInterval(interval);
-  }, [isPaused, trafficType]);
+  }, [isPaused]);
 
   const systemStatus = stats?.systemStatus || {
     status: "ONLINE",
@@ -179,59 +173,6 @@ const SecurityGateway = () => {
         {/* Super Admin Emergency Controls */}
         {isSuperAdmin && <EmergencyControls />}
 
-        {/* Traffic Filter Bar: All Traffic vs Real Traffic vs Simulation Traffic */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            background: "var(--bg-card)",
-            border: "1px solid var(--border-color)",
-            borderRadius: "var(--radius-lg)",
-            padding: "0.75rem 1.25rem",
-            marginBottom: "1.25rem",
-            flexWrap: "wrap",
-            gap: "0.75rem",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <Filter size={16} color="#38bdf8" />
-            <span style={{ fontSize: "0.85rem", fontWeight: 700 }}>Telemetry Mode:</span>
-          </div>
-
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            {[
-              { label: "All Traffic", val: "ALL" },
-              { label: "Real Traffic Only", val: "REAL" },
-              { label: "Simulation Only", val: "SIMULATION" },
-            ].map((mode) => (
-              <button
-                key={mode.val}
-                type="button"
-                onClick={() => setTrafficType(mode.val)}
-                style={{
-                  padding: "0.4rem 0.9rem",
-                  borderRadius: "var(--radius-md)",
-                  border: "1px solid var(--border-color)",
-                  background:
-                    trafficType === mode.val
-                      ? mode.val === "SIMULATION"
-                        ? "#9333ea"
-                        : "var(--color-primary)"
-                      : "var(--bg-subtle)",
-                  color: trafficType === mode.val ? "#ffffff" : "var(--text-secondary)",
-                  fontSize: "0.82rem",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                {mode.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Live Overview Metric Cards (11 Key Metrics) */}
         <SecurityOverview stats={stats} />
 
@@ -244,15 +185,6 @@ const SecurityGateway = () => {
           >
             <Activity size={17} />
             <span>Live Monitoring & Charts</span>
-          </button>
-
-          <button
-            type="button"
-            className={`soc-tab-btn ${activeTab === "lab" ? "active" : ""}`}
-            onClick={() => setActiveTab("lab")}
-          >
-            <Cpu size={17} />
-            <span>Security Test Lab (Isolated)</span>
           </button>
 
           <button
@@ -297,7 +229,7 @@ const SecurityGateway = () => {
               currentRange={currentRange}
               onRangeChange={(range) => {
                 setCurrentRange(range);
-                fetchTrafficTimeline(range, trafficType).then((res) =>
+                fetchTrafficTimeline(range).then((res) =>
                   setTimelineData(res.timeline || [])
                 );
               }}
@@ -308,24 +240,7 @@ const SecurityGateway = () => {
           </div>
         )}
 
-        {/* Tab 2: Security Test Lab */}
-        {activeTab === "lab" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-            <AttackSimulator
-              onSimulationComplete={() => {
-                loadDashboardData();
-                loadEvents();
-              }}
-            />
-            <LiveSecurityFeed
-              liveEvents={liveEvents}
-              isPaused={isPaused}
-              onTogglePause={() => setIsPaused(!isPaused)}
-            />
-          </div>
-        )}
-
-        {/* Tab 3: Security Event & Traffic Table */}
+        {/* Tab 2: Security Event & Traffic Table */}
         {activeTab === "events" && (
           <SecurityEventTable
             events={eventData.events}
@@ -341,20 +256,20 @@ const SecurityGateway = () => {
           />
         )}
 
-        {/* Tab 4: Blocked Clients */}
+        {/* Tab 3: Blocked Clients */}
         {activeTab === "blocked" && (
           <BlockedClients
             blockedClients={blockedClients}
             onRefresh={() => {
-              fetchBlockedClients(trafficType).then((res) =>
+              fetchBlockedClients().then((res) =>
                 setBlockedClients(res.blockedClients || [])
               );
-              fetchSecurityStats(trafficType).then((res) => setStats(res.stats || null));
+              fetchSecurityStats().then((res) => setStats(res.stats || null));
             }}
           />
         )}
 
-        {/* Tab 5: Blocked User Accounts (req.user._id) */}
+        {/* Tab 4: Blocked User Accounts (req.user._id) */}
         {activeTab === "blocked-users" && (
           <BlockedUsers />
         )}

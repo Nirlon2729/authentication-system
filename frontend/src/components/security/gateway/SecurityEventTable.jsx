@@ -108,7 +108,7 @@ const SecurityEventTable = ({
           />
           <input
             type="text"
-            placeholder="Search by IP, client ID, email, or simulation ID..."
+            placeholder="Search by IP, client ID, email, or reason..."
             value={filters.search || ""}
             onChange={(e) =>
               onFilterChange({ ...filters, search: e.target.value, page: 1 })
@@ -124,26 +124,6 @@ const SecurityEventTable = ({
             }}
           />
         </div>
-
-        <select
-          value={filters.trafficType || "ALL"}
-          onChange={(e) =>
-            onFilterChange({ ...filters, trafficType: e.target.value, page: 1 })
-          }
-          style={{
-            padding: "0.55rem 0.75rem",
-            borderRadius: "var(--radius-md)",
-            border: "1px solid var(--border-color)",
-            background: "var(--bg-card)",
-            color: "var(--text-primary)",
-            fontSize: "0.82rem",
-            fontWeight: 600,
-          }}
-        >
-          <option value="ALL">All Traffic Types</option>
-          <option value="REAL">Real Traffic Only</option>
-          <option value="SIMULATION">Simulation Only</option>
-        </select>
 
         <select
           value={filters.severity || "ALL"}
@@ -240,7 +220,6 @@ const SecurityEventTable = ({
           <thead>
             <tr>
               <th>Timestamp</th>
-              <th>Type</th>
               <th>Method & Endpoint</th>
               <th>Client ID / IP</th>
               <th>User / Account</th>
@@ -255,7 +234,7 @@ const SecurityEventTable = ({
             {loading ? (
               <tr>
                 <td
-                  colSpan={10}
+                  colSpan={9}
                   style={{
                     textAlign: "center",
                     padding: "2rem",
@@ -273,7 +252,7 @@ const SecurityEventTable = ({
             ) : events.length === 0 ? (
               <tr>
                 <td
-                  colSpan={10}
+                  colSpan={9}
                   style={{
                     textAlign: "center",
                     padding: "2rem",
@@ -299,25 +278,6 @@ const SecurityEventTable = ({
                         ? new Date(ev.timestamp).toISOString().slice(0, 10)
                         : ""}
                     </div>
-                  </td>
-                  <td>
-                    <span
-                      style={{
-                        fontSize: "0.68rem",
-                        fontWeight: 800,
-                        padding: "0.2rem 0.45rem",
-                        borderRadius: "4px",
-                        background: ev.isSimulation
-                          ? "rgba(168, 85, 247, 0.15)"
-                          : "rgba(59, 130, 246, 0.15)",
-                        color: ev.isSimulation ? "#c084fc" : "#3b82f6",
-                        border: ev.isSimulation
-                          ? "1px solid rgba(168, 85, 247, 0.3)"
-                          : "1px solid rgba(59, 130, 246, 0.3)",
-                      }}
-                    >
-                      {ev.isSimulation ? "SIMULATION" : "REAL"}
-                    </span>
                   </td>
                   <td>
                     <div
@@ -362,7 +322,6 @@ const SecurityEventTable = ({
                           fontFamily: "monospace",
                           fontSize: "0.76rem",
                           fontWeight: 700,
-                          color: ev.isSimulation ? "#c084fc" : "inherit",
                         }}
                       >
                         {ev.clientIdentifier || "anonymous"}
@@ -558,44 +517,7 @@ const SecurityEventTable = ({
             >
               <tbody>
                 <tr>
-                  <td
-                    style={{
-                      fontWeight: 600,
-                      color: "var(--text-muted)",
-                      width: "35%",
-                    }}
-                  >
-                    Traffic Type
-                  </td>
-                  <td>
-                    <span
-                      style={{
-                        fontSize: "0.75rem",
-                        fontWeight: 800,
-                        padding: "0.2rem 0.5rem",
-                        borderRadius: "4px",
-                        background: selectedEvent.isSimulation
-                          ? "rgba(168, 85, 247, 0.15)"
-                          : "rgba(59, 130, 246, 0.15)",
-                        color: selectedEvent.isSimulation ? "#c084fc" : "#3b82f6",
-                      }}
-                    >
-                      {selectedEvent.isSimulation ? "SIMULATION" : "REAL"}
-                    </span>
-                  </td>
-                </tr>
-                {selectedEvent.simulationId && (
-                  <tr>
-                    <td style={{ fontWeight: 600, color: "var(--text-muted)" }}>
-                      Simulation ID
-                    </td>
-                    <td>
-                      <code>{selectedEvent.simulationId}</code>
-                    </td>
-                  </tr>
-                )}
-                <tr>
-                  <td style={{ fontWeight: 600, color: "var(--text-muted)" }}>
+                  <td style={{ fontWeight: 600, color: "var(--text-muted)", width: "35%" }}>
                     Request ID
                   </td>
                   <td>

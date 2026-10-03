@@ -10,6 +10,18 @@ const {
   CLIENT_TYPES,
   BLOCK_SOURCES,
 } = require("../constants/securityEvents");
+const {
+  isProtectedSuperAdmin,
+  isSuperAdmin,
+  canBlockUser,
+} = require("../utils/authHelpers");
+
+let User;
+try {
+  User = require("../models/User");
+} catch (_e) {
+  User = null;
+}
 
 /**
  * 1. Live Overview Statistics (with trafficType filter)
@@ -156,111 +168,7 @@ const getSystemStatus = asyncHandler(async (req, res) => {
   });
 });
 
-/**
- * 10. Start Controlled Simulation
- * Generates an isolated synthetic test context with a cryptographically signed authorization token.
- */
-const startSimulation = asyncHandler(async (req, res) => {
-  const { testType = "NORMAL_TRAFFIC", requestCount = 25, intervalMs = 250 } = req.body;
-  const adminId = req.user?._id?.toString() || "admin";
 
-  const simContext = securityGatewayService.createSimulation({
-    adminId,
-    testType,
-    requestCount,
-    intervalMs,
-  });
-
-  res.status(200).json({
-    success: true,
-    message: `Controlled ${testType} test initialized.`,
-    simulation: {
-      simulationId: simContext.simulationId,
-      testAccountId: simContext.testAccountId,
-      testEmail: simContext.testEmail,
-      testClientId: simContext.testClientId,
-      syntheticIp: simContext.syntheticIp,
-      syntheticUserAgent: simContext.syntheticUserAgent,
-      simulationToken: simContext.simulationToken,
-      testType: simContext.testType,
-      requestCount: simContext.requestCount,
-      intervalMs: simContext.intervalMs,
-      expiresAt: simContext.expiresAt,
-    },
-  });
-});
-
-/**
- * 11. Dedicated Internal Security Test Endpoint
- * Handles individual synthetic requests within a verified simulation context.
- */
-const handleTestTraffic = asyncHandler(async (req, res) => {
-  const {
-    testType = "NORMAL_TRAFFIC",
-    payloadData = "",
-    index = 1,
-    simulatedBurst = false,
-  } = req.body || {};
-
-  const isSimulation = req.isSimulation;
-  const sim = req.simulation;
-
-  // If this test simulates failed logins or invalid OTPs on the test account, track it safely
-  if (isSimulation && sim) {
-    if (testType === "FAILED_LOGIN_SIM") {
-      securityGatewayService.recordFailedLogin(sim.testEmail);
-    } else if (testType === "INVALID_OTP_SIM") {
-      securityGatewayService.recordFailedOTP(sim.testEmail);
-    }
-  }
-
-  const evalResult = req.securityEvaluation || {
-    decision: GATEWAY_DECISIONS.NORMAL,
-    severity: SEVERITY_LEVELS.LOW,
-    riskScore: 0,
-    action: GATEWAY_ACTIONS.ALLOWED,
-    reason: "Normal baseline test traffic",
-  };
-
-  // If gateway blocked the synthetic client, return 403 to simulator with details
-  if (
-    evalResult.action === GATEWAY_ACTIONS.BLOCKED ||
-    evalResult.decision === GATEWAY_DECISIONS.HIGH_RISK ||
-    evalResult.decision === GATEWAY_DECISIONS.CRITICAL
-  ) {
-    return res.status(403).json({
-      success: false,
-      message: "Automated anomalous traffic detected and blocked by the security gateway.",
-      testType,
-      index,
-      evaluation: evalResult,
-      isSimulation,
-      blockedClientId: evalResult.clientIdentifier,
-    });
-  }
-
-  res.status(200).json({
-    success: true,
-    message: "Security gateway evaluation completed.",
-    testType,
-    index,
-    evaluation: evalResult,
-    isSimulation,
-  });
-});
-
-/**
- * 12. Stop Active Simulation
- */
-const stopSimulation = asyncHandler(async (req, res) => {
-  const { simulationId } = req.body;
-  securityGatewayService.stopSimulation(simulationId);
-
-  res.status(200).json({
-    success: true,
-    message: "Security simulation stopped and temporary test state cleaned.",
-  });
-});
 
 /**
  * 13. Super Admin Global Website Lockdown Status
@@ -323,6 +231,17 @@ const getBlockedUsers = asyncHandler(async (req, res) => {
  */
 const unblockUser = asyncHandler(async (req, res) => {
   const { userId } = req.params;
+
+  if (User) {
+    const targetUser = await User.findById(userId);
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+    if (isProtectedSuperAdmin(targetUser)) {
+      return res.status(403).json({ success: false, message: "Protected Super Admin cannot be restricted." });
+    }
+  }
+
   const result = await securityGatewayService.unblockUserAccount({
     userId,
     unblockedBy: req.user,
@@ -342,6 +261,17 @@ const unblockUser = asyncHandler(async (req, res) => {
 const blockUser = asyncHandler(async (req, res) => {
   const { userId } = req.params;
   const { reason, durationMinutes } = req.body;
+
+  if (User) {
+    const targetUser = await User.findById(userId);
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+    const authCheck = canBlockUser(req.user, targetUser);
+    if (!authCheck.allowed) {
+      return res.status(403).json({ success: false, message: authCheck.reason });
+    }
+  }
 
   const result = await securityGatewayService.blockUserAccount({
     userId,
@@ -369,10 +299,6 @@ module.exports = {
   unblockClient,
   exportCSV,
   getSystemStatus,
-  startSimulation,
-  runSimulation: startSimulation, // alias for backwards compatibility
-  handleTestTraffic,
-  stopSimulation,
   getWebsiteLockdownStatus,
   enableWebsiteLockdown,
   restoreWebsite,

@@ -3,8 +3,15 @@ const Session = require("../models/Session");
 const LoginHistory = require("../models/LoginHistory");
 const cloudinary = require("../config/cloudinary");
 const { deleteOTPByUser } = require("./otpService");
+const { isProtectedSuperAdmin } = require("../utils/authHelpers");
 
 const deleteAccountService = async (user) => {
+  if (isProtectedSuperAdmin(user)) {
+    const error = new Error("The protected Super Admin account cannot be deleted.");
+    error.statusCode = 403;
+    throw error;
+  }
+
   const userId = user._id || user.id;
 
   // Delete OTPs

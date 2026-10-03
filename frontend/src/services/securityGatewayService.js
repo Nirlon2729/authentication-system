@@ -1,13 +1,10 @@
 import api from "./api";
 
 /**
- * 1. Fetch SOC Dashboard Live Stats with optional trafficType filter
- * trafficType: 'ALL' | 'REAL' | 'SIMULATION'
+ * 1. Fetch SOC Dashboard Live Stats
  */
-export const fetchSecurityStats = async (trafficType = "ALL") => {
-  const response = await api.get("/security/admin/stats", {
-    params: { trafficType },
-  });
+export const fetchSecurityStats = async () => {
+  const response = await api.get("/security/admin/stats");
   return response.data;
 };
 
@@ -22,19 +19,17 @@ export const fetchSecurityEvents = async (params = {}) => {
 /**
  * 3. Fetch Real-time Live Security Stream (In-Memory Buffer)
  */
-export const fetchLiveSecurityFeed = async (trafficType = "ALL") => {
-  const response = await api.get("/security/admin/feed", {
-    params: { trafficType },
-  });
+export const fetchLiveSecurityFeed = async () => {
+  const response = await api.get("/security/admin/feed");
   return response.data;
 };
 
 /**
  * 4. Fetch Traffic Timeline Chart Data
  */
-export const fetchTrafficTimeline = async (range = "15m", trafficType = "ALL") => {
+export const fetchTrafficTimeline = async (range = "15m") => {
   const response = await api.get("/security/admin/traffic", {
-    params: { range, trafficType },
+    params: { range },
   });
   return response.data;
 };
@@ -42,20 +37,16 @@ export const fetchTrafficTimeline = async (range = "15m", trafficType = "ALL") =
 /**
  * 5. Fetch Threat & Risk Score Analytics
  */
-export const fetchThreatAnalytics = async (trafficType = "ALL") => {
-  const response = await api.get("/security/admin/threats", {
-    params: { trafficType },
-  });
+export const fetchThreatAnalytics = async () => {
+  const response = await api.get("/security/admin/threats");
   return response.data;
 };
 
 /**
  * 6. Fetch Active Blocked Clients
  */
-export const fetchBlockedClients = async (trafficType = "ALL") => {
-  const response = await api.get("/security/admin/blocked", {
-    params: { trafficType },
-  });
+export const fetchBlockedClients = async () => {
+  const response = await api.get("/security/admin/blocked");
   return response.data;
 };
 
@@ -75,48 +66,6 @@ export const exportSecurityCSV = async (params = {}) => {
     params,
     responseType: "blob",
   });
-  return response.data;
-};
-
-/**
- * 9. Start Controlled Security Simulation
- * Requests a secure server-generated simulation context with cryptographic authorization
- */
-export const startSecuritySimulation = async ({
-  testType = "NORMAL_TRAFFIC",
-  requestCount = 25,
-  intervalMs = 250,
-}) => {
-  const response = await api.post("/security/admin/test/start", {
-    testType,
-    requestCount,
-    intervalMs,
-  });
-  return response.data;
-};
-
-/**
- * 10. Send Controlled Test Request (Security Test Lab)
- * Sends individual synthetic requests using verified simulation headers
- */
-export const sendSecurityTestTraffic = async (testPayload = {}, simulationHeaders = {}) => {
-  const headers = {};
-  if (simulationHeaders.simulationId) {
-    headers["X-Simulation-Id"] = simulationHeaders.simulationId;
-  }
-  if (simulationHeaders.simulationToken) {
-    headers["X-Simulation-Token"] = simulationHeaders.simulationToken;
-  }
-
-  const response = await api.post("/security/test-traffic", testPayload, { headers });
-  return response.data;
-};
-
-/**
- * 11. Stop Active Simulation
- */
-export const stopSecuritySimulation = async (simulationId = "") => {
-  const response = await api.post("/security/admin/test/stop", { simulationId });
   return response.data;
 };
 

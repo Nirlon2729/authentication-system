@@ -9,15 +9,20 @@ const compareOTP = require("../utils/compareOTP");
 const sendEmail = require("../services/emailService");
 const otpTemplate = require("../templates/email/otpTemplate");
 const { createOTP, deleteOTP, findOTPByEmailAndType } = require("../services/otpService");
+const {
+  isProtectedSuperAdmin,
+  isSuperAdmin,
+  isAdmin,
+  canChangeRole,
+  canBlockUser,
+  canDeleteUser,
+} = require("../utils/authHelpers");
 
 // Get all users for admin directory with search & role filter
 const getAllUsers = asyncHandler(async (req, res) => {
-  const { search = "", role = "all", includeTestAccounts = "false" } = req.query;
+  const { search = "", role = "all" } = req.query;
 
   const query = {};
-  if (includeTestAccounts !== "true") {
-    query.isSecurityTestAccount = { $ne: true };
-  }
 
   if (search) {
     query.$or = [
@@ -35,7 +40,13 @@ const getAllUsers = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     count: users.length,
-    users: users.map(sanitizeUser),
+    users: users.map((u) => {
+      const sanitized = sanitizeUser(u);
+      if (isProtectedSuperAdmin(u)) {
+        sanitized.role = "super_admin";
+      }
+      return sanitized;
+    }),
   });
 });
 
@@ -51,20 +62,7 @@ const requestCreateAdminOTP = asyncHandler(async (req, res) => {
   }
 
   const normalizedEmail = email.toLowerCase().trim();
-  if (normalizedEmail.endsWith(".invalid") || normalizedEmail.startsWith("security-test")) {
-    return res.status(400).json({
-      success: false,
-      message: "Security test accounts cannot be promoted to administrator.",
-    });
-  }
-
   const existingUser = await User.findOne({ email: normalizedEmail });
-  if (existingUser?.isSecurityTestAccount) {
-    return res.status(400).json({
-      success: false,
-      message: "Security test accounts cannot be promoted to administrator.",
-    });
-  }
   const targetName = fullName || (existingUser ? existingUser.fullName : "Admin User");
 
   const otp = generateOTP();
@@ -185,43 +183,29 @@ const updateUserRole = asyncHandler(async (req, res) => {
     });
   }
 
-  // Only SUPER_ADMIN can assign or revoke super_admin role
-  if (role === "super_admin" && req.user.role !== "super_admin") {
-    return res.status(403).json({
-      success: false,
-      message: "Access denied: Only a Super Admin can promote users to Super Admin.",
-    });
-  }
-
-  const user = await User.findById(userId);
-  if (!user) {
+  const targetUser = await User.findById(userId);
+  if (!targetUser) {
     return res.status(404).json({
       success: false,
       message: "User not found.",
     });
   }
 
-  if (user.isSecurityTestAccount) {
-    return res.status(400).json({
-      success: false,
-      message: "Security test accounts cannot have their roles modified.",
-    });
-  }
-
-  if (user.role === "super_admin" && req.user.role !== "super_admin") {
+  const authCheck = canChangeRole(req.user, targetUser, role);
+  if (!authCheck.allowed) {
     return res.status(403).json({
       success: false,
-      message: "Access denied: Cannot alter the role of a Super Admin.",
+      message: authCheck.reason,
     });
   }
 
-  user.role = role;
-  await user.save();
+  targetUser.role = role;
+  await targetUser.save();
 
   res.status(200).json({
     success: true,
-    message: `User ${user.email} role updated to ${role}`,
-    user: sanitizeUser(user),
+    message: `User ${targetUser.email} role updated to ${role}`,
+    user: sanitizeUser(targetUser),
   });
 });
 
@@ -229,41 +213,50 @@ const updateUserRole = asyncHandler(async (req, res) => {
 const toggleUserBlock = asyncHandler(async (req, res) => {
   const { userId } = req.params;
 
-  const user = await User.findById(userId);
-  if (!user) {
+  const targetUser = await User.findById(userId);
+  if (!targetUser) {
     return res.status(404).json({
       success: false,
       message: "User not found.",
     });
   }
 
-  if (user.role === "super_admin") {
-    return res.status(403).json({
-      success: false,
-      message: "Cannot block a Super Admin account.",
-    });
+  if (!targetUser.isBlocked) {
+    const authCheck = canBlockUser(req.user, targetUser);
+    if (!authCheck.allowed) {
+      return res.status(403).json({
+        success: false,
+        message: authCheck.reason,
+      });
+    }
+
+    targetUser.isBlocked = true;
+    targetUser.blockedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15-minute default
+    targetUser.blockReason = "Manually restricted by administrator";
+    targetUser.blockSource = "ADMIN_MANUAL";
+    targetUser.blockedAt = new Date();
+    targetUser.blockedBy = req.user._id;
+  } else {
+    if (isProtectedSuperAdmin(targetUser)) {
+      return res.status(403).json({
+        success: false,
+        message: "Protected Super Admin cannot be blocked or restricted.",
+      });
+    }
+    targetUser.isBlocked = false;
+    targetUser.blockedUntil = null;
+    targetUser.blockReason = "";
+    targetUser.blockSource = null;
+    targetUser.blockedAt = null;
+    targetUser.blockedBy = null;
   }
 
-  user.isBlocked = !user.isBlocked;
-  if (user.isBlocked) {
-    user.blockedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15-minute default
-    user.blockReason = "Manually restricted by administrator";
-    user.blockSource = "ADMIN_MANUAL";
-    user.blockedAt = new Date();
-    user.blockedBy = req.user._id;
-  } else {
-    user.blockedUntil = null;
-    user.blockReason = "";
-    user.blockSource = null;
-    user.blockedAt = null;
-    user.blockedBy = null;
-  }
-  await user.save();
+  await targetUser.save();
 
   res.status(200).json({
     success: true,
-    message: `User ${user.email} is now ${user.isBlocked ? "blocked" : "active"}`,
-    user: sanitizeUser(user),
+    message: `User ${targetUser.email} is now ${targetUser.isBlocked ? "blocked" : "active"}`,
+    user: sanitizeUser(targetUser),
   });
 });
 
@@ -271,18 +264,19 @@ const toggleUserBlock = asyncHandler(async (req, res) => {
 const deleteUser = asyncHandler(async (req, res) => {
   const { userId } = req.params;
 
-  const user = await User.findById(userId);
-  if (!user) {
+  const targetUser = await User.findById(userId);
+  if (!targetUser) {
     return res.status(404).json({
       success: false,
       message: "User not found.",
     });
   }
 
-  if (user.role === "super_admin" && req.user.role !== "super_admin") {
+  const authCheck = canDeleteUser(req.user, targetUser);
+  if (!authCheck.allowed) {
     return res.status(403).json({
       success: false,
-      message: "Access denied: Only a Super Admin can delete a Super Admin account.",
+      message: authCheck.reason,
     });
   }
 
@@ -291,7 +285,7 @@ const deleteUser = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    message: `User ${user.email} deleted successfully.`,
+    message: `User ${targetUser.email} deleted successfully.`,
   });
 });
 
