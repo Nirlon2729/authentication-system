@@ -8,20 +8,23 @@ import {
   Laptop,
   ShieldCheck,
   ShieldAlert,
+  Activity,
+  Smartphone,
 } from "lucide-react";
 
 import ChangePasswordForm from "../../components/security/ChangePasswordForm";
-import CreatePasswordWizard from "../../components/security/CreatePasswordWizard";
 import ActiveSessions from "../../components/security/ActiveSessions";
 import ChangeEmailForm from "../../components/security/ChangeEmailForm";
 import SecurityCard from "../../components/security/SecurityCard";
+import LoginHistoryTable from "../../components/security/LoginHistoryTable";
+import RecognizedDevicesList from "../../components/security/RecognizedDevicesList";
+import SuspiciousActivityBanner from "../../components/security/SuspiciousActivityBanner";
 
 const Security = () => {
   const { user } = useAuth();
   const [activeSection, setActiveSection] = useState(null);
 
-  const showCreatePassword =
-    user?.provider === "google" && !user?.hasPassword;
+  const isSettingPassword = !user?.hasPassword;
 
   return (
     <DashboardLayout>
@@ -70,20 +73,41 @@ const Security = () => {
           </p>
         </div>
 
+        {/* Suspicious Activity Emergency Banner */}
+        <SuspiciousActivityBanner onReviewClick={() => setActiveSection("activity")} />
+
         {/* Main Selection Cards */}
         {activeSection === null && (
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             <SecurityCard
               icon={<KeyRound size={20} color="var(--primary-600)" />}
-              title={showCreatePassword ? "Create Account Password" : "Change Password"}
+              title={isSettingPassword ? "Create Account Password" : "Change Password"}
               subtitle={
-                showCreatePassword
+                isSettingPassword
                   ? "Set up a password to enable both Google and email login"
                   : "Update your password with email OTP verification"
               }
-              badge={showCreatePassword ? "Action Recommended" : "Protected"}
-              badgeType={showCreatePassword ? "warning" : "success"}
+              badge={isSettingPassword ? "Action Recommended" : "Protected"}
+              badgeType={isSettingPassword ? "warning" : "success"}
               onClick={() => setActiveSection("password")}
+            />
+
+            <SecurityCard
+              icon={<Activity size={20} color="#6366f1" />}
+              title="Login Activity & Threat Monitoring"
+              subtitle="Inspect real-time sign-in events, unusual locations, and intelligent risk scores"
+              badge="Real-Time"
+              badgeType="neutral"
+              onClick={() => setActiveSection("activity")}
+            />
+
+            <SecurityCard
+              icon={<Smartphone size={20} color="#059669" />}
+              title="Recognized Devices & Browsers"
+              subtitle="Review and revoke devices and browsers trusted by intelligent account protection"
+              badge="Protected"
+              badgeType="success"
+              onClick={() => setActiveSection("devices")}
             />
 
             <SecurityCard
@@ -150,9 +174,11 @@ const Security = () => {
                 boxShadow: "var(--shadow-sm)",
               }}
             >
-              {activeSection === "password" && (
-                showCreatePassword ? <CreatePasswordWizard /> : <ChangePasswordForm />
-              )}
+              {activeSection === "password" && <ChangePasswordForm />}
+
+              {activeSection === "activity" && <LoginHistoryTable />}
+
+              {activeSection === "devices" && <RecognizedDevicesList />}
 
               {activeSection === "email" && <ChangeEmailForm />}
 

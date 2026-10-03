@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const jwt = require("jsonwebtoken");
 const asyncHandler = require("../utils/asyncHandler");
 const hashPassword = require("../utils/hashPassword");
 const comparePassword = require("../utils/comparePassword");
@@ -37,6 +38,7 @@ const {
   updateRefreshToken,
 } = require("../services/authService");
 const securityGatewayService = require("../services/securityGatewayService");
+const loginSecurityService = require("../services/loginSecurityService");
 
 /* ==========================================================================
    Helper: Parse Device & User-Agent details
@@ -239,20 +241,16 @@ const signupComplete = asyncHandler(async (req, res) => {
 
   await deleteOTP(normalizedEmail, "SIGNUP");
 
-  // Asynchronous login security notification & audit event
-  sendNewLoginNotification({
+  // Real-Time Login Event Tracking and Initial Baseline
+  await loginSecurityService.processLoginAttempt({
+    req,
+    res,
+    user,
     email: user.email,
-    fullName: user.fullName,
-    loginTime: new Date(),
-    ipAddress: clientInfo.ipAddress,
-    browser: clientInfo.browser,
-    operatingSystem: clientInfo.operatingSystem,
-    device: clientInfo.device,
-    authMethod: "Signup Auto-Login",
-    rememberMe: false,
-    requestId: clientInfo.requestId,
-    sessionId: session?._id,
-  }).catch((err) => console.error("[Security] Async signup login notification error:", err.message));
+    provider: "local",
+    isSuccess: true,
+    session,
+  });
 
   securityGatewayService.logSecurityEvent({
     eventType: "SUCCESSFUL_LOGIN",
@@ -373,6 +371,16 @@ const login = asyncHandler(async (req, res) => {
   if (!user) {
     const failCount = securityGatewayService.recordFailedLogin(normalizedEmail);
     const clientInfo = parseClientInfo(req);
+
+    loginSecurityService.processLoginAttempt({
+      req,
+      res,
+      email: normalizedEmail,
+      provider: "local",
+      isSuccess: false,
+      failureReason: "Invalid email or unregistered account",
+    }).catch((e) => console.error("[Security] LoginSecurity failed attempt error:", e.message));
+
     await securityGatewayService.logSecurityEvent({
       eventType: failCount >= 3 ? "BRUTE_FORCE_PATTERN" : "FAILED_LOGIN_ATTEMPT",
       severity: failCount >= 5 ? "CRITICAL" : (failCount >= 3 ? "HIGH" : "LOW"),
@@ -421,6 +429,17 @@ const login = asyncHandler(async (req, res) => {
   if (!isMatch) {
     const failCount = securityGatewayService.recordFailedLogin(normalizedEmail);
     const clientInfo = parseClientInfo(req);
+
+    loginSecurityService.processLoginAttempt({
+      req,
+      res,
+      user,
+      email: normalizedEmail,
+      provider: "local",
+      isSuccess: false,
+      failureReason: "Incorrect password",
+    }).catch((e) => console.error("[Security] LoginSecurity failed attempt error:", e.message));
+
     await securityGatewayService.logSecurityEvent({
       eventType: failCount >= 3 ? "BRUTE_FORCE_PATTERN" : "FAILED_LOGIN_ATTEMPT",
       severity: failCount >= 5 ? "CRITICAL" : (failCount >= 3 ? "HIGH" : "LOW"),
@@ -485,20 +504,16 @@ const login = asyncHandler(async (req, res) => {
     expiresAt: new Date(Date.now() + sessionDays * 24 * 60 * 60 * 1000),
   });
 
-  // Asynchronous login notification & security event logging
-  sendNewLoginNotification({
+  // Real-Time Suspicious Login Evaluation & Intelligent Protection
+  await loginSecurityService.processLoginAttempt({
+    req,
+    res,
+    user,
     email: user.email,
-    fullName: user.fullName,
-    loginTime: new Date(),
-    ipAddress: clientInfo.ipAddress,
-    browser: clientInfo.browser,
-    operatingSystem: clientInfo.operatingSystem,
-    device: clientInfo.device,
-    authMethod: "Email & Password",
-    rememberMe: !!remember,
-    requestId: clientInfo.requestId,
-    sessionId: session?._id,
-  }).catch((err) => console.error("[Security] Async login email notification error:", err.message));
+    provider: "local",
+    isSuccess: true,
+    session,
+  });
 
   securityGatewayService.logSecurityEvent({
     eventType: "SUCCESSFUL_LOGIN",
@@ -618,20 +633,16 @@ const googleLogin = asyncHandler(async (req, res) => {
     expiresAt: new Date(Date.now() + sessionDays * 24 * 60 * 60 * 1000),
   });
 
-  // Asynchronous login notification & security event logging
-  sendNewLoginNotification({
+  // Real-Time Suspicious Login Evaluation & Intelligent Protection
+  await loginSecurityService.processLoginAttempt({
+    req,
+    res,
+    user,
     email: user.email,
-    fullName: user.fullName,
-    loginTime: new Date(),
-    ipAddress: clientInfo.ipAddress,
-    browser: clientInfo.browser,
-    operatingSystem: clientInfo.operatingSystem,
-    device: clientInfo.device,
-    authMethod: "Google",
-    rememberMe: !!remember,
-    requestId: clientInfo.requestId,
-    sessionId: session?._id,
-  }).catch((err) => console.error("[Security] Async Google login email notification error:", err.message));
+    provider: "google",
+    isSuccess: true,
+    session,
+  });
 
   securityGatewayService.logSecurityEvent({
     eventType: "SUCCESSFUL_LOGIN",
@@ -808,9 +819,24 @@ const verifyOTPController = asyncHandler(async (req, res) => {
   securityGatewayService.resetFailedOTPs(normalizedEmail);
   await verifyOTP(otpRecord._id);
 
+  let resetToken = null;
+  if (type === "CHANGE_PASSWORD" || type === "CREATE_PASSWORD" || type === "PASSWORD_RESET") {
+    resetToken = jwt.sign(
+      {
+        userId: (otpRecord.user || "").toString(),
+        email: normalizedEmail,
+        purpose: type === "PASSWORD_RESET" ? "PASSWORD_RESET" : "PASSWORD_CHANGE",
+        otpId: otpRecord._id.toString(),
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "10m" }
+    );
+  }
+
   res.status(200).json({
     success: true,
     message: "OTP verified successfully.",
+    ...(resetToken ? { resetToken } : {}),
   });
 });
 

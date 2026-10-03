@@ -1,4 +1,4 @@
-const otpTemplate = (name, otp) => {
+const otpTemplate = (name, otp, expireMinutes = 5) => {
   return `
     <div style="font-family:Arial,sans-serif;background:#f5f5f5;padding:40px;">
       <div style="max-width:600px;margin:auto;background:#ffffff;border-radius:10px;padding:30px;">
@@ -20,8 +20,8 @@ const otpTemplate = (name, otp) => {
         </h1>
 
         <p>
-          This OTP is valid for
-          <strong>10 minutes</strong>.
+          This verification code is valid for
+          <strong>${expireMinutes} minutes</strong>.
         </p>
 
         <p>

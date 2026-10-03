@@ -39,6 +39,19 @@ const sessionSchema = new mongoose.Schema(
       default: "",
     },
 
+    deviceId: {
+      type: String,
+      default: "",
+      index: true,
+    },
+
+    loginEventId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "LoginEvent",
+      default: null,
+      index: true,
+    },
+
     userAgent: {
       type: String,
       default: "",

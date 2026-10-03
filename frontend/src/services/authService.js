@@ -84,6 +84,11 @@ export const requestChangePasswordOTP = async () => {
   return response.data;
 };
 
+export const verifyChangePasswordOTP = async (data) => {
+  const response = await api.post("/profile/change-password/verify-otp", data);
+  return response.data;
+};
+
 export const requestCreatePasswordOTP = async () => {
   const response = await api.post("/profile/create-password/request");
   return response.data;
@@ -107,5 +112,40 @@ export const requestEmailChangeOTP = async (data) => {
 
 export const verifyEmailChangeOTP = async (data) => {
   const response = await api.patch("/profile/change-email", data);
+  return response.data;
+};
+
+export const getLoginHistory = async (params = {}) => {
+  const response = await api.get("/profile/login-history", { params });
+  return response.data;
+};
+
+export const getRecognizedDevices = async () => {
+  const response = await api.get("/profile/recognized-devices");
+  return response.data;
+};
+
+export const revokeRecognizedDevice = async (deviceId) => {
+  const response = await api.delete(`/profile/recognized-devices/${deviceId}`);
+  return response.data;
+};
+
+export const secureAccount = async () => {
+  const response = await api.post("/profile/secure-account");
+  return response.data;
+};
+
+export const reviewLoginEvent = async (eventId, status) => {
+  const response = await api.post(`/profile/review-login/${eventId}`, { status });
+  return response.data;
+};
+
+export const getAdminLoginIncidents = async (params = {}) => {
+  const response = await api.get("/security/admin/login-incidents", { params });
+  return response.data;
+};
+
+export const updateAdminIncidentStatus = async (id, data) => {
+  const response = await api.patch(`/security/admin/login-incidents/${id}/status`, data);
   return response.data;
 };

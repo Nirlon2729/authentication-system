@@ -20,6 +20,8 @@ const {
   getBlockedUsers,
   unblockUser,
   blockUser,
+  getLoginIncidents,
+  updateLoginIncidentStatus,
 } = require("../controllers/securityGatewayController");
 
 // Super Admin Emergency Controls (Strictly requires SUPER_ADMIN role)
@@ -62,5 +64,9 @@ router.get("/admin/status", getSystemStatus);
 router.get("/admin/blocked-users", getBlockedUsers);
 router.post("/admin/unblock-user/:userId", unblockUser);
 router.post("/admin/block-user/:userId", blockUser);
+
+// Suspicious Login Incidents (Admin Investigation)
+router.get("/admin/login-incidents", getLoginIncidents);
+router.patch("/admin/login-incidents/:id/status", updateLoginIncidentStatus);
 
 module.exports = router;

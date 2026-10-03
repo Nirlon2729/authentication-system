@@ -2,6 +2,7 @@ const asyncHandler = require("../utils/asyncHandler");
 const securityGatewayService = require("../services/securityGatewayService");
 const securityMonitoringService = require("../services/securityMonitoringService");
 const lockdownService = require("../services/lockdownService");
+const loginSecurityService = require("../services/loginSecurityService");
 const {
   SECURITY_EVENT_TYPES,
   SEVERITY_LEVELS,
@@ -289,6 +290,41 @@ const blockUser = asyncHandler(async (req, res) => {
   res.status(200).json(result);
 });
 
+/* ==========================================================================
+   Suspicious Login Incidents (Admin Investigation)
+========================================================================== */
+const getLoginIncidents = asyncHandler(async (req, res) => {
+  const { page, limit, severity, status, search } = req.query;
+  const data = await loginSecurityService.getAdminLoginIncidents({
+    page,
+    limit,
+    severity,
+    status,
+    search,
+  });
+  res.status(200).json({ success: true, ...data });
+});
+
+const updateLoginIncidentStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { status, notes } = req.body;
+
+  if (!status) {
+    return res.status(400).json({ success: false, message: "Status is required." });
+  }
+
+  const updated = await loginSecurityService.updateIncidentStatus(id, { status, notes });
+  if (!updated) {
+    return res.status(404).json({ success: false, message: "Incident not found." });
+  }
+
+  res.status(200).json({
+    success: true,
+    message: "Incident updated successfully.",
+    incident: updated,
+  });
+});
+
 module.exports = {
   getStats,
   getEvents,
@@ -305,4 +341,6 @@ module.exports = {
   getBlockedUsers,
   unblockUser,
   blockUser,
+  getLoginIncidents,
+  updateLoginIncidentStatus,
 };

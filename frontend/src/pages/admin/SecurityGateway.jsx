@@ -5,6 +5,7 @@ import {
   Layers,
   UserX,
   Users,
+  ShieldAlert,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import SecurityOverview from "../../components/security/gateway/SecurityOverview";
@@ -15,6 +16,7 @@ import SecurityEventTable from "../../components/security/gateway/SecurityEventT
 import BlockedClients from "../../components/security/gateway/BlockedClients";
 import BlockedUsers from "../../components/security/gateway/BlockedUsers";
 import EmergencyControls from "../../components/security/gateway/EmergencyControls";
+import SuspiciousLoginIncidents from "../../components/security/gateway/SuspiciousLoginIncidents";
 import {
   fetchSecurityStats,
   fetchSecurityEvents,
@@ -213,6 +215,15 @@ const SecurityGateway = () => {
             <Users size={17} />
             <span>Blocked Users</span>
           </button>
+
+          <button
+            type="button"
+            className={`soc-tab-btn ${activeTab === "incidents" ? "active" : ""}`}
+            onClick={() => setActiveTab("incidents")}
+          >
+            <ShieldAlert size={17} />
+            <span>Suspicious Login Incidents</span>
+          </button>
         </div>
 
         {/* Tab 1: Live Monitoring & Charts */}
@@ -272,6 +283,11 @@ const SecurityGateway = () => {
         {/* Tab 4: Blocked User Accounts (req.user._id) */}
         {activeTab === "blocked-users" && (
           <BlockedUsers />
+        )}
+
+        {/* Tab 5: Genuine Suspicious Login Incidents */}
+        {activeTab === "incidents" && (
+          <SuspiciousLoginIncidents />
         )}
       </div>
     </DashboardLayout>
